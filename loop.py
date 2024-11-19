@@ -4,13 +4,11 @@ from netmiko import ConnectHandler  # Optional if you expand with Netmiko later
 
 # SSH class for managing network sessions
 class SSHTONetworkSession:
-    def __init__(self, ip_address, username, password, hostname, loopback_address, subnet, enable_password=''):
+    def __init__(self, ip_address, username, password, hostname, enable_password=''):
         self.ip_address = ip_address
         self.username = username
         self.password = password
         self.hostname = hostname
-        self.ip = loopback_address
-        self.subnet = subnet
         self.enable_password = enable_password
         self.session = None
 
@@ -61,11 +59,15 @@ class SSHTONetworkSession:
 
     # Creating a loopback interface
     def creating_loopback(self):
+        # Ask for IP address and subnet dynamically
+        loopback_address = input("Enter loopback IP address: ")
+        subnet = input("Enter subnet mask: ")
+
         self.session.sendline('configure terminal')
         self.session.expect(r'\(config\)#')
         self.session.sendline('interface loopback 0')
         self.session.expect(r'\(config-if\)#')
-        self.session.sendline(f'ip address {self.ip} {self.subnet}')
+        self.session.sendline(f'ip address {loopback_address} {subnet}')
         self.session.expect(r'\(config-if\)#')
         print('Loopback interface created successfully.')
         self.session.sendline('exit')
@@ -77,7 +79,8 @@ class SSHTONetworkSession:
             print("1. Compare running config with local version")
             print("2. Compare running config with startup config on device")
             print("3. Show IP interface brief")
-            print("4. Exit")
+            print("4. Create a loopback interface")
+            print("5. Exit")
 
             option = input('Choose an option: ')
 
@@ -90,6 +93,8 @@ class SSHTONetworkSession:
                 self.session.expect('#')
                 print(self.session.before)
             elif option == '4':
+                self.creating_loopback()
+            elif option == '5':
                 print("Exiting comparison menu.")
                 break
             else:
@@ -153,11 +158,9 @@ def menu():
             username = input('Enter username: ')
             password = input('Enter password: ')
             hostname = input('Enter new hostname: ')
-            loopback_address = input('Enter loopback IP address: ')
-            subnet = input('Enter subnet mask: ')
             enable_password = input('Enter enable password (if any): ')
 
-            ssh = SSHTONetworkSession(host_ip, username, password, hostname, loopback_address, subnet, enable_password)
+            ssh = SSHTONetworkSession(host_ip, username, password, hostname, enable_password)
             ssh.ssh_session()
 
         elif option == 'b':
