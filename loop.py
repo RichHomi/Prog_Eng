@@ -177,15 +177,30 @@ if __name__ == "__main__":
 
 
 
-# Find the "Interface" header and print the relevant lines
-        start_index = next((i for i, line in enumerate(output) if "Interface" in line), -1)
-        if start_index != -1:
-            interface_data = output[start_index:]  # Extract only the relevant lines
-            print("\n".join(interface_data))
-        else:
-            print("No valid interface information found.")
-
+def show_ip_interface_brief(self):
+    try:
+        # Send the command to the device
+        self.session.sendline('show ip interface brief')
+        self.session.expect('#', timeout=10)  # Wait for the prompt to reappear
+        
+        # Capture the session output
+        raw_output = self.session.before
+        
+        # Clean the output
+        output_lines = raw_output.splitlines()  # Split output into lines
+        filtered_lines = [line.strip() for line in output_lines if line.strip()]  # Remove empty and whitespace lines
+        
+        # Find and print the relevant lines
+        print("\n--- IP Interface Brief ---")
+        header_found = False
+        for line in filtered_lines:
+            if "Interface" in line:  # Look for the header
+                header_found = True
+            if header_found:
+                print(line)  # Print header and subsequent lines
+                
     except pexpect.exceptions.TIMEOUT:
         print("Timeout while retrieving interface information.")
     except Exception as e:
         print(f"Error: {e}")
+
