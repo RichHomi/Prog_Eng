@@ -208,10 +208,18 @@ def creating_loopback(self):
             return
 
         # Configure the loopback interface
+        print("Attempting to enter loopback interface configuration mode...")
         self.session.sendline('interface loopback0')
-        result = self.session.expect([r'\(config-if\)#', pexpect.TIMEOUT, pexpect.EOF])
-        if result != 0:
-            print("-------- Failed to create loopback interface.")
+        result = self.session.expect([r'\(config-if\)#', r'\(config\)#', pexpect.TIMEOUT, pexpect.EOF])
+
+        print("Response after entering loopback0:", self.session.before)  # Debugging line
+
+        if result == 0:
+            print("Successfully entered loopback configuration mode.")
+        elif result == 1:
+            print("Still in global config mode, device might not have changed prompt.")
+        else:
+            print("Failed to enter loopback interface mode.")
             return
 
         # Assign an IP address to the loopback interface
@@ -219,6 +227,7 @@ def creating_loopback(self):
         subnet_mask = input('Enter subnet mask (e.g., 255.255.255.0): ')
         self.session.sendline(f'ip address {ip_address} {subnet_mask}')
         result = self.session.expect([r'\(config-if\)#', pexpect.TIMEOUT, pexpect.EOF])
+
         if result != 0:
             print("-------- Failed to assign IP address to loopback interface.")
             return
@@ -237,4 +246,3 @@ def creating_loopback(self):
         print("Session unexpectedly closed while configuring loopback interface.")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-
