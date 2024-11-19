@@ -204,3 +204,31 @@ def menu():
 # Entry point of the program
 if __name__ == "__main__":
     menu()
+
+
+
+
+
+def show_ip_interface_brief(self):
+    try:
+        # Send the command to the device
+        self.session.sendline('show ip interface brief')
+        self.session.expect('#', timeout=10)  # Wait for the prompt to reappear
+
+        # Capture the command output (excluding the prompt and command itself)
+        raw_output = self.session.before
+
+        # Extract and clean the relevant part of the output
+        output_lines = raw_output.split("\n")  # Split into lines
+        relevant_lines = output_lines[1:]  # Skip the first line, which contains the issued command
+        relevant_output = "\n".join(line.strip() for line in relevant_lines if line.strip())  # Clean and format output
+
+        # Print the processed output
+        print("\n--- IP Interface Brief ---")
+        print(relevant_output if relevant_output else "No valid output found.")
+
+    except pexpect.exceptions.TIMEOUT:
+        print("Timeout while retrieving interface information.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
