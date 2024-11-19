@@ -161,35 +161,39 @@ if __name__ == "__main__":
 
 def creating_loopback(self):
     try:
+        # Ensure session is active and in privileged mode
+        self.session.sendline('\n')
+        self.session.expect(['#', '>'], timeout=5)
+
         # Enter configuration mode
         self.session.sendline('configure terminal')
-        result = self.session.expect([r'\(config\)#', pexpect.TIMEOUT, pexpect.EOF])
-        
+        result = self.session.expect([r'\(config\)#', r'#', pexpect.TIMEOUT, pexpect.EOF], timeout=30)
+
         # Debug: print session response
         print("DEBUG: Response after 'configure terminal':")
         print(self.session.before)
 
-        if result != 0:
+        if result not in [0, 1]:  # Match either (config)# or #
             print('-------- Failed to enter config mode')
             return
 
         # Create the loopback interface
         self.session.sendline('interface loopback0')
-        result = self.session.expect([r'\(config-if\)#', pexpect.TIMEOUT, pexpect.EOF])
+        result = self.session.expect([r'\(config-if\)#', pexpect.TIMEOUT, pexpect.EOF], timeout=30)
         if result != 0:
             print('-------- Failed to create loopback interface')
             return
 
         self.session.sendline('ip address 192.168.56.89 255.255.255.0')
-        result = self.session.expect([r'\(config-if\)#', pexpect.TIMEOUT, pexpect.EOF])
+        result = self.session.expect([r'\(config-if\)#', pexpect.TIMEOUT, pexpect.EOF], timeout=30)
         if result != 0:
             print('-------- Failed to assign IP address to loopback')
             return
 
         self.session.sendline('exit')  # Exit interface configuration mode
-        self.session.expect([r'\(config\)#', pexpect.TIMEOUT, pexpect.EOF])
+        self.session.expect([r'\(config\)#', pexpect.TIMEOUT, pexpect.EOF], timeout=30)
         self.session.sendline('exit')  # Exit global configuration mode
-        self.session.expect(['#', pexpect.TIMEOUT, pexpect.EOF])
+        self.session.expect(['#', pexpect.TIMEOUT, pexpect.EOF], timeout=30)
 
         print("Loopback interface successfully configured.")
 
@@ -199,4 +203,3 @@ def creating_loopback(self):
         print("Session unexpectedly closed.")
     except Exception as e:
         print(f"An error occurred: {e}")
-
