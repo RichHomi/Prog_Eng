@@ -174,3 +174,67 @@ def menu():
 
 if __name__ == "__main__":
     menu()
+
+
+
+def creating_loopback(self):
+    """
+    Creates a loopback interface on the remote device and assigns an IP address.
+    Handles device prompt mismatches, privilege level issues, and session states.
+    """
+    try:
+        # Confirm the current session state (must be in privileged exec mode, '#')
+        self.session.sendline('')
+        result = self.session.expect([r'#', r'>', pexpect.TIMEOUT, pexpect.EOF])
+
+        if result == 1:
+            print("-------- Not in enable mode. Attempting to enter enable mode.")
+            self.session.sendline('enable')
+            enable_result = self.session.expect(['Password:', '#', pexpect.TIMEOUT, pexpect.EOF])
+            if enable_result == 0:  # If password is prompted
+                self.session.sendline(self.enable_password)
+                enable_result = self.session.expect(['#', pexpect.TIMEOUT, pexpect.EOF])
+            if enable_result != 1:
+                print("-------- Failed to enter enable mode.")
+                return
+
+        # Enter global configuration mode
+        print("Entering global configuration mode...")
+        self.session.sendline('configure terminal')
+        result = self.session.expect([r'\(config\)#', r'#', pexpect.TIMEOUT, pexpect.EOF])
+
+        if result != 0:
+            print("-------- Failed to enter config mode. Check privileges or device response.")
+            return
+
+        # Configure the loopback interface
+        self.session.sendline('interface loopback0')
+        result = self.session.expect([r'\(config-if\)#', pexpect.TIMEOUT, pexpect.EOF])
+        if result != 0:
+            print("-------- Failed to create loopback interface.")
+            return
+
+        # Assign an IP address to the loopback interface
+        ip_address = input('Enter IP address for loopback interface (e.g., 192.168.56.89): ')
+        subnet_mask = input('Enter subnet mask (e.g., 255.255.255.0): ')
+        self.session.sendline(f'ip address {ip_address} {subnet_mask}')
+        result = self.session.expect([r'\(config-if\)#', pexpect.TIMEOUT, pexpect.EOF])
+        if result != 0:
+            print("-------- Failed to assign IP address to loopback interface.")
+            return
+
+        # Exit interface and global configuration modes
+        self.session.sendline('exit')  # Exit from interface configuration mode
+        self.session.expect([r'\(config\)#', pexpect.TIMEOUT, pexpect.EOF])
+        self.session.sendline('exit')  # Exit from global configuration mode
+        self.session.expect(['#', pexpect.TIMEOUT, pexpect.EOF])
+
+        print(f"Loopback interface configured successfully with IP {ip_address}/{subnet_mask}.")
+
+    except pexpect.exceptions.TIMEOUT:
+        print("Timeout while configuring loopback interface.")
+    except pexpect.exceptions.EOF:
+        print("Session unexpectedly closed while configuring loopback interface.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
