@@ -1,6 +1,6 @@
 import difflib  # To handle the comparisons
 import pexpect  # To handle SSH session
-from netmiko import ConnectHandler  # Optional if you expand with Netmiko later
+
 
 # SSH class for managing network sessions
 class SSHTONetworkSession:
@@ -173,3 +173,19 @@ def menu():
 # Entry point of the program
 if __name__ == "__main__":
     menu()
+
+
+
+
+# Find the "Interface" header and print the relevant lines
+        start_index = next((i for i, line in enumerate(output) if "Interface" in line), -1)
+        if start_index != -1:
+            interface_data = output[start_index:]  # Extract only the relevant lines
+            print("\n".join(interface_data))
+        else:
+            print("No valid interface information found.")
+
+    except pexpect.exceptions.TIMEOUT:
+        print("Timeout while retrieving interface information.")
+    except Exception as e:
+        print(f"Error: {e}")
