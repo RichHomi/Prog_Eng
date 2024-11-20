@@ -199,7 +199,6 @@ class SSHTONetworkSession:
     
 
     def creating_ospf(self):
-
         try:
             # Get the process ID, network ID, wildcard, and area from the user
             process_id = input("Enter the process ID: ")
@@ -222,27 +221,29 @@ class SSHTONetworkSession:
             self.session.sendline('exit')  # Exit global config
             self.session.expect('#')
 
-            # Save the configuration
-            self.save_config()
+            # Save the configuration to ensure it persists
+            self.session.sendline('write memory')  # Save the configuration
+            self.session.expect('#')
             print("Configuration saved successfully.")
 
         except Exception as e:
             print(f"An error occurred while creating OSPF: {e}")
 
 
-    def advertise_OSPF(self):
-        
+    def show_ospf_config(self):
         try:
-            # Send the command to show OSPF neighbors
-            self.session.sendline('show ip ospf neighbor')
+            # Send the command to display the OSPF configuration (including the 'network' statements)
+            self.session.sendline('show running-config | include router ospf')
             self.session.expect('#')  # Wait for the prompt
             output = self.session.before.decode()  # Capture the output
 
-            # Print the output to the user
-            print("\n--- OSPF Neighbor Details ---")
+            # Print the OSPF configuration
+            print("\n--- OSPF Configuration ---")
             print(output)
+            
         except Exception as e:
-            print(f"An error occurred while fetching OSPF neighbor details: {e}")
+            print(f"An error occurred while fetching OSPF configuration: {e}")
+
 
 
             
