@@ -128,7 +128,8 @@ class SSHTONetworkSession:
             print("3. Create a loopback interface")
             print("4. Show IP interface brief")
             print("5  Create an OSPF")
-            print("6. Exit")
+            print("6. Advertise OSPF")
+            print("7.  Exit")
 
             option = input('Choose an option: ')
 
@@ -147,7 +148,7 @@ class SSHTONetworkSession:
             elif option =='6':
                 self.advertise_OSPF()
 
-            elif option == '6':
+            elif option == '7':
                 print("Exiting comparison menu.")
                 break
             else:
@@ -243,6 +244,7 @@ class SSHTONetworkSession:
             
         except Exception as e:
             print(f"An error occurred while fetching OSPF configuration: {e}")
+
 
 
 
