@@ -59,11 +59,13 @@ class SSHTONetworkSession:
 
     # Creating a loopback interface
     def creating_loopback(self):
+
         try:
-            # Ask for IP address and subnet dynamically
+            # Get loopback IP and subnet
             loopback_address = input("Enter loopback IP address: ")
             subnet = input("Enter subnet mask: ")
 
+            # Configure the loopback interface
             self.session.sendline('configure terminal')
             self.session.expect(r'\(config\)#')
             self.session.sendline('interface loopback 0')
@@ -71,37 +73,49 @@ class SSHTONetworkSession:
             self.session.sendline(f'ip address {loopback_address} {subnet}')
             self.session.expect(r'\(config-if\)#')
             print('Loopback interface created successfully.')
-            self.session.sendline('exit')
+
+            # Exit configuration mode
+            self.session.sendline('exit')  # Exit interface config
+            self.session.expect(r'\(config\)#')
+            self.session.sendline('exit')  # Exit global config
+            self.session.expect('#')
+
+            # Save the configuration
+            self.save_config()
+            print("Configuration saved successfully.")
+
         except Exception as e:
-            print(f"Error creating loopback interface: {e}")
+            print(f"An error occurred while creating the loopback interface: {e}")
+
+    def save_config(self):
+            try:
+                # Save the running configuration to the startup configuration
+                self.session.sendline('write memory')
+                self.session.expect('#')
+            except Exception as e:
+                print(f"An error occurred while saving the configuration: {e}")
+
+
+            except pexpect.exceptions.TIMEOUT:
+                print("Timeout occurred while creating loopback interface.")
+            except Exception as e:
+                print(f"An error occurred: {e}")
 
     # Show IP interface brief
     def show_ip_interface_brief(self):
         try:
             # Send the command to the device
             self.session.sendline('show ip interface brief')
-            self.session.expect('#', timeout=10)  # Wait for the prompt to reappear
+            self.session.expect('#')  # Wait for the prompt
+            output = self.session.before.decode()  # Capture the output
 
-            # Capture the session output
-            raw_output = self.session.before
-
-            # Clean the output
-            output_lines = raw_output.splitlines()  # Split output into lines
-            filtered_lines = [line.strip() for line in output_lines if line.strip()]  # Remove empty and whitespace lines
-
-            # Find and print the relevant lines
+            # Print the output to the user
             print("\n--- IP Interface Brief ---")
-            header_found = False
-            for line in filtered_lines:
-                if "Interface" in line:  # Look for the header
-                    header_found = True
-                if header_found:
-                    print(line)  # Print header and subsequent lines
-
-        except pexpect.exceptions.TIMEOUT:
-            print("Timeout while retrieving interface information.")
+            print(output)
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"An error occurred while fetching interface details: {e}")
+
+            
 
     # Menu for comparing configurations
     def compare_configs_menu(self):
@@ -109,8 +123,8 @@ class SSHTONetworkSession:
             print("\n--- Compare Configurations ---")
             print("1. Compare running config with local version")
             print("2. Compare running config with startup config on device")
-            print("3. Show IP interface brief")
-            print("4. Create a loopback interface")
+            print("3. Create a loopback interface")
+            print("4. Show IP interface brief")
             print("5. Exit")
 
             option = input('Choose an option: ')
@@ -120,14 +134,17 @@ class SSHTONetworkSession:
             elif option == '2':
                 self.compare_with_startup_config_ssh()
             elif option == '3':
-                self.show_ip_interface_brief()
-            elif option == '4':
+                # Create a loopback interface
                 self.creating_loopback()
+            elif option == '4':
+                # Show IP interface brief, including the new loopback
+                self.show_ip_interface_brief()
             elif option == '5':
                 print("Exiting comparison menu.")
                 break
             else:
                 print("Invalid option.")
+
 
     # Compare two configuration files
     def compare_configs(self, saved_config_path, compare_config_path):
@@ -208,27 +225,4 @@ if __name__ == "__main__":
 
 
 
-
-def show_ip_interface_brief(self):
-    try:
-        # Send the command to the device
-        self.session.sendline('show ip interface brief')
-        self.session.expect('#', timeout=10)  # Wait for the prompt to reappear
-
-        # Capture the command output (excluding the prompt and command itself)
-        raw_output = self.session.before
-
-        # Extract and clean the relevant part of the output
-        output_lines = raw_output.split("\n")  # Split into lines
-        relevant_lines = output_lines[1:]  # Skip the first line, which contains the issued command
-        relevant_output = "\n".join(line.strip() for line in relevant_lines if line.strip())  # Clean and format output
-
-        # Print the processed output
-        print("\n--- IP Interface Brief ---")
-        print(relevant_output if relevant_output else "No valid output found.")
-
-    except pexpect.exceptions.TIMEOUT:
-        print("Timeout while retrieving interface information.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
 
