@@ -73,6 +73,8 @@ class SSHTONetworkSession:
             self.session.sendline(f'ip address {loopback_address} {subnet}')
             self.session.expect(r'\(config-if\)#')
             print('Loopback interface created successfully.')
+            self.session.sendline('no shutdown')
+            self.session.expect(r'\(config-if\)#')
 
             # Exit configuration mode
             self.session.sendline('exit')  # Exit interface config
@@ -107,7 +109,7 @@ class SSHTONetworkSession:
             # Send the command to the device
             self.session.sendline('show ip interface brief')
             self.session.expect('#')  # Wait for the prompt
-            output = self.session.before.decode()  # Capture the output
+            output = self.session.before  # Capture the output
 
             # Print the output to the user
             print("\n--- IP Interface Brief ---")
@@ -221,8 +223,3 @@ def menu():
 # Entry point of the program
 if __name__ == "__main__":
     menu()
-
-
-
-
-
