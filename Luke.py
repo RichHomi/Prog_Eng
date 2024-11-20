@@ -59,7 +59,6 @@ class SSHTONetworkSession:
 
     # Creating a loopback interface
     def creating_loopback(self):
-
         try:
             # Get loopback IP and subnet
             loopback_address = input("Enter loopback IP address: ")
@@ -90,18 +89,16 @@ class SSHTONetworkSession:
             print(f"An error occurred while creating the loopback interface: {e}")
 
     def save_config(self):
-            try:
-                # Save the running configuration to the startup configuration
-                self.session.sendline('write memory')
-                self.session.expect('#')
-            except Exception as e:
-                print(f"An error occurred while saving the configuration: {e}")
-
-
-            except pexpect.exceptions.TIMEOUT:
-                print("Timeout occurred while creating loopback interface.")
-            except Exception as e:
-                print(f"An error occurred: {e}")
+        try:
+            # Save the running configuration to the startup configuration
+            self.session.sendline('write memory')
+            self.session.expect('#')
+        except Exception as e:
+            print(f"An error occurred while saving the configuration: {e}")
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout occurred while creating loopback interface.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
     # Show IP interface brief
     def show_ip_interface_brief(self):
@@ -117,8 +114,6 @@ class SSHTONetworkSession:
         except Exception as e:
             print(f"An error occurred while fetching interface details: {e}")
 
-            
-
     # Menu for comparing configurations
     def compare_configs_menu(self):
         while True:
@@ -127,9 +122,9 @@ class SSHTONetworkSession:
             print("2. Compare running config with startup config on device")
             print("3. Create a loopback interface")
             print("4. Show IP interface brief")
-            print("5  Create an OSPF")
+            print("5. Create an OSPF")
             print("6. Advertise OSPF")
-            print("7.  Exit")
+            print("7. Exit")
 
             option = input('Choose an option: ')
 
@@ -145,15 +140,13 @@ class SSHTONetworkSession:
                 self.show_ip_interface_brief()
             elif option == '5':
                 self.creating_ospf()
-            elif option =='6':
-                self.advertise_OSPF()
-
+            elif option == '6':
+                self.advertise_OSPF()  # Corrected method call here
             elif option == '7':
                 print("Exiting comparison menu.")
                 break
             else:
                 print("Invalid option.")
-
 
     # Compare two configuration files
     def compare_configs(self, saved_config_path, compare_config_path):
@@ -197,7 +190,6 @@ class SSHTONetworkSession:
             print("Session unexpectedly closed.")
         except Exception as e:
             print(f"Error during comparison: {e}")
-    
 
     def creating_ospf(self):
         try:
@@ -230,8 +222,7 @@ class SSHTONetworkSession:
         except Exception as e:
             print(f"An error occurred while creating OSPF: {e}")
 
-
-    def show_ospf_config(self):
+    def advertise_OSPF(self):
         try:
             # Send the command to display the OSPF configuration (including the 'network' statements)
             self.session.sendline('show running-config | include router ospf')
@@ -241,15 +232,9 @@ class SSHTONetworkSession:
             # Print the OSPF configuration
             print("\n--- OSPF Configuration ---")
             print(output)
-            
+
         except Exception as e:
             print(f"An error occurred while fetching OSPF configuration: {e}")
-
-
-
-
-            
-
 
 
 # Menu to start SSH session
