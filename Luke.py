@@ -2,7 +2,6 @@ import difflib  # To handle the comparisons
 import pexpect  # To handle SSH sessions
 
 
-# SSH class for managing network sessions
 class SSHTONetworkSession:
     def __init__(self, ip_address, username, password, hostname, enable_password=''):
         self.ip_address = ip_address
@@ -12,87 +11,89 @@ class SSHTONetworkSession:
         self.enable_password = enable_password
         self.session = None
 
-    # Initiate SSH session
     def ssh_session(self):
-        self.session = pexpect.spawn(f'ssh {self.username}@{self.ip_address}', encoding='utf-8', timeout=20)
-        result = self.session.expect(['Password:', pexpect.TIMEOUT, pexpect.EOF])
-        if result != 0:
-            print('Session failed to establish.')
-            return
+        try:
+            # Start SSH session
+            self.session = pexpect.spawn(f'ssh {self.username}@{self.ip_address}', encoding='utf-8', timeout=20)
+            result = self.session.expect(['Password:', pexpect.TIMEOUT, pexpect.EOF])
+            if result != 0:
+                print('Session failed to establish.')
+                return
 
-        self.session.sendline(self.password)
-        result = self.session.expect(['>', '#', pexpect.TIMEOUT, pexpect.EOF])
-        if result != 0:
-            print('Authentication failed.')
-            return
+            self.session.sendline(self.password)
+            result = self.session.expect(['>', '#', pexpect.TIMEOUT, pexpect.EOF])
+            if result != 0:
+                print('Authentication failed.')
+                return
 
-        # Enter enable mode
-        self.session.sendline('enable')
-        result = self.session.expect(['Password:', pexpect.TIMEOUT, pexpect.EOF])
-        if result == 0:
-            self.session.sendline(self.enable_password)
-            result = self.session.expect('#')
-        if result != 0:
-            print('Enable mode failed.')
-            return
+            # Disable pagination
+            self.session.sendline('terminal length 0')
+            self.session.expect('#')
 
-        # Enter configuration mode
-        self.session.sendline('configure terminal')
-        result = self.session.expect(r'\(config\)#')
-        if result != 0:
-            print('Config mode failed.')
-            return
+            # Enter enable mode
+            self.session.sendline('enable')
+            result = self.session.expect(['Password:', '#', pexpect.TIMEOUT])
+            if result == 0:
+                self.session.sendline(self.enable_password)
+                self.session.expect('#')
 
-        # Set hostname
-        self.session.sendline(f'hostname {self.hostname}')
-        result = self.session.expect(rf'{self.hostname}\(config\)#')
-        if result == 0:
+            # Enter configuration mode
+            self.session.sendline('configure terminal')
+            self.session.expect(r'\(config\)#')
+
+            # Set hostname
+            self.session.sendline(f'hostname {self.hostname}')
+            self.session.expect(rf'{self.hostname}\(config\)#')
             print('Hostname set successfully.')
-            # Save to startup config
+
+            # Exit configuration mode
             self.session.sendline('exit')
             self.session.expect('#')
             self.save_config()
-        else:
-            print('Failed to set hostname.')
-            return
+            print('Session ready for further commands.')
+            self.compare_configs_menu()
 
-        # Exit configuration mode
-        print('Session ready for further commands.')
-        self.compare_configs_menu()
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout occurred. Device may not be responding.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
-    # Save the running configuration to startup configuration
     def save_config(self):
+        # Save running configuration to startup configuration
         self.session.sendline('copy running-config startup-config')
         result = self.session.expect(['Destination filename', '#'], timeout=30)
-        if result == 0:  # Handle the prompt
-            self.session.sendline('')  # Press Enter to accept the default filename
+        if result == 0:  # If prompted for filename
+            self.session.sendline('')
             self.session.expect('#', timeout=30)
         print('Configuration saved to startup configuration.')
 
-    # Creating a loopback interface
     def creating_loopback(self):
-        # Ask for IP address and subnet dynamically
-        loopback_address = input("Enter loopback IP address: ")
-        subnet = input("Enter subnet mask: ")
+        try:
+            # Get loopback IP and subnet
+            loopback_address = input("Enter loopback IP address: ")
+            subnet = input("Enter subnet mask: ")
 
-        self.session.sendline('configure terminal')
-        self.session.expect(r'\(config\)#')
-        self.session.sendline('interface loopback 0')
-        self.session.expect(r'\(config-if\)#')
-        self.session.sendline(f'ip address {loopback_address} {subnet}')
-        self.session.expect(r'\(config-if\)#')
-        print('Loopback interface created successfully.')
+            # Configure the loopback interface
+            self.session.sendline('configure terminal')
+            self.session.expect(r'\(config\)#')
+            self.session.sendline('interface loopback 0')
+            self.session.expect(r'\(config-if\)#')
+            self.session.sendline(f'ip address {loopback_address} {subnet}')
+            self.session.expect(r'\(config-if\)#')
+            print('Loopback interface created successfully.')
 
-        # Exit configuration mode
-        self.session.sendline('exit')  # Exit interface config mode
-        self.session.expect(r'\(config\)#')
-        self.session.sendline('exit')  # Exit global config mode
-        self.session.expect('#')
+            # Exit configuration mode and save configuration
+            self.session.sendline('exit')  # Exit interface config
+            self.session.expect(r'\(config\)#')
+            self.session.sendline('exit')  # Exit global config
+            self.session.expect('#')
+            self.save_config()
 
-        # Save to startup config
-        self.save_config()
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout occurred while creating loopback interface.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
-    # Menu for comparing configurations
     def compare_configs_menu(self):
         while True:
             print("\n--- Compare Configurations ---")
@@ -109,11 +110,17 @@ class SSHTONetworkSession:
             elif option == '2':
                 self.compare_with_startup_config_ssh()
             elif option == '3':
-                # Show the running configuration
-                self.session.sendline('show running-config')
-                self.session.expect('#', timeout=30)
-                print("\n--- Running Configuration ---")
-                print(self.session.before)  # Print the output of the command
+                try:
+                    self.session.sendline('show running-config')
+                    while True:  # Handle pagination
+                        index = self.session.expect(['--More--', '#'], timeout=30)
+                        print(self.session.before)  # Print the output
+                        if index == 0:
+                            self.session.send(' ')  # Continue
+                        elif index == 1:
+                            break
+                except pexpect.exceptions.TIMEOUT:
+                    print("Timeout occurred while fetching running configuration.")
             elif option == '4':
                 self.creating_loopback()
             elif option == '5':
@@ -122,7 +129,6 @@ class SSHTONetworkSession:
             else:
                 print("Invalid option.")
 
-    # Compare two configuration files
     def compare_configs(self, saved_config_path, compare_config_path):
         try:
             with open(saved_config_path, "r") as f:
@@ -140,9 +146,7 @@ class SSHTONetworkSession:
         except FileNotFoundError:
             print(f"File {saved_config_path} or {compare_config_path} not found.")
 
-    # Compare running config with startup config on the device
     def compare_with_startup_config_ssh(self):
-        print("\n--- Running Config vs Startup Config ---")
         try:
             self.session.sendline('show startup-config')
             self.session.expect('#', timeout=30)
@@ -160,13 +164,10 @@ class SSHTONetworkSession:
 
         except pexpect.exceptions.TIMEOUT:
             print("Timeout. Device may not be responding.")
-        except pexpect.exceptions.EOF:
-            print("Session unexpectedly closed.")
         except Exception as e:
             print(f"Error during comparison: {e}")
 
 
-# Menu to start SSH session
 def menu():
     while True:
         print('--------- MENU ---------')
@@ -194,6 +195,5 @@ def menu():
             print("Invalid option.")
 
 
-# Entry point of the program
 if __name__ == "__main__":
     menu()
