@@ -70,7 +70,14 @@ class SSHTONetworkSession:
         self.session.sendline(f'ip address {loopback_address} {subnet}')
         self.session.expect(r'\(config-if\)#')
         print('Loopback interface created successfully.')
-        self.session.sendline('exit')
+        self.session.sendline('exit')  # Exit interface config mode
+        self.session.expect(r'\(config\)#')
+        self.session.sendline('exit')  # Exit global config mode
+        self.session.expect('#')
+        # Save to startup config
+        self.session.sendline('copy running-config startup-config')
+        self.session.expect('#')
+        print('Configuration saved to startup configuration.')
 
     # Menu for comparing configurations
     def compare_configs_menu(self):
