@@ -214,3 +214,11 @@ class SSHTONetworkSession:
             print('RIP successfully created.')
 
             self.session.sendline('exit')
+            self.session.sendline('exit')
+            self.session.expect(r'\\(config\\)#')
+            self.session.sendline('exit')
+            self.session.expect('#')
+
+            self.save_config()
+        except Exception as e:
+            print(f"An error occurred while creating RIP: {e}")
