@@ -1,114 +1,123 @@
-import difflib  # To handle the comparisons
-import pexpect  # To handle SSH session
+import difflib  # to handle the comparisons
+import pexpect  # to handle ssh session
 
-
-# SSH class for managing network sessions
+# An SSH class is defined
 class SSHTONetworkSession:
+
+    # Constructor method to initialize the SSH session with parameters
     def __init__(self, ip_address, username, password, hostname, enable_password=''):
         self.ip_address = ip_address
         self.username = username
         self.password = password
-        self.hostname = hostname
         self.enable_password = enable_password
-        self.session = None
+        self.hostname = hostname
+        self.session = None  # Will hold the SSH session once connected
 
-    # Initiate SSH session
+    # Function to initiate the SSH session
     def ssh_session(self):
-        self.session = pexpect.spawn(f'ssh {self.username}@{self.ip_address}', encoding='utf-8', timeout=20)
+        self.session = pexpect.spawn('ssh ' + self.username + '@' + self.ip_address, encoding='utf-8', timeout=20)
         result = self.session.expect(['Password:', pexpect.TIMEOUT, pexpect.EOF])
+
+        # Error handling for establishing the session
         if result != 0:
-            print('Session failed to establish.')
+            print('-------- Establishing session failed for', self.ip_address)
             return
 
+        # Send password when prompted
         self.session.sendline(self.password)
         result = self.session.expect(['>', '#', pexpect.TIMEOUT, pexpect.EOF])
+
+        # Check if password is correct
         if result != 0:
-            print('Authentication failed.')
+            print('-------- Incorrect password. Session failed:')
             return
 
-        # Enter enable mode
+        # Entering enable mode
         self.session.sendline('enable')
         result = self.session.expect(['Password:', pexpect.TIMEOUT, pexpect.EOF])
+
+        # Check if enable password is needed
         if result == 0:
             self.session.sendline(self.enable_password)
-            result = self.session.expect('#')
+            result = self.session.expect(['#', pexpect.TIMEOUT, pexpect.EOF])
+
+        # Check for success in entering enable mode
         if result != 0:
-            print('Enable mode failed.')
+            print('-------- Session failed to enter enable mode')
             return
 
         # Enter configuration mode
         self.session.sendline('configure terminal')
-        result = self.session.expect(r'\(config\)#')
+        result = self.session.expect([r'\(config\)#', pexpect.TIMEOUT, pexpect.EOF])
+
         if result != 0:
-            print('Config mode failed.')
+            print('-------- Session failed to enter config mode')
             return
 
-        # Set hostname
+        # Change the hostname
         self.session.sendline(f'hostname {self.hostname}')
-        result = self.session.expect(rf'{self.hostname}\(config\)#')
-        if result == 0:
-            print('Hostname set successfully.')
-        else:
-            print('Failed to set hostname.')
-            return
+        result = self.session.expect([rf'{self.hostname}\(config\)#', pexpect.TIMEOUT, pexpect.EOF])
 
-        # Exit configuration mode
-        self.session.sendline('exit')
-        print('Session ready for further commands.')
+        if result != 0:
+            print(f'-------- Session failed setting hostname to {self.hostname}')
+            return
+        else:
+            # Exit configuration mode
+            self.session.sendline('exit')
+            self.session.sendline('exit')
+
+            # Display success message
+            print('----------------------------')
+            print('Success! Connected to:', self.ip_address)
+            print('Username:', self.username)
+            print('Hostname:', self.hostname)
+            print('----------------------------')
+
+            # Save running config to a file
+            running_config = self.session.before  # save the output of the session as a string
+            with open("labs_assignment_ssh.txt", "w") as f:
+                f.write(running_config)
+            print("Running config saved successfully to 'labs_assignment_ssh.txt'")
+
+        # Keep the session open and ask for comparison
         self.compare_configs_menu()
 
-    def creating_loopback(self):
-        try:
-            # Get loopback IP and subnet
-            loopback_address = input("Enter loopback IP address: ")
-            subnet = input("Enter subnet mask: ")
+    def compare_configs_menu(self):
+        # User chooses from the menu
+        print("\n--- Menu ---")
+        print("1. Show ip interface brief")
+        print("2. Creating loopback")
+        print("3. Exit")
 
-            # Enter configuration mode
-            self.session.sendline('configure terminal')
-            self.session.expect(r'\(config\)#', timeout=10)
-            
-            # Configure the loopback interface
-            self.session.sendline('interface loopback 0')
-            self.session.expect(r'\(config-if\)#', timeout=10)
-            
-            self.session.sendline(f'ip address {loopback_address} {subnet}')
-            self.session.expect(r'\(config-if\)#', timeout=10)
-            self.session.sendline('no shutdown')
-            self.session.expect(r'\(config-if\)#', timeout=10)
+        option = input('Choose an option: ')
 
-            print('Loopback interface created successfully.')
+        if option == '1':
+            #show ip interface brief
+            self.show_ip_interface_brief()
 
-            # Exit configuration mode
-            self.session.sendline('exit')  # Exit interface config
-            self.session.expect(r'\(config\)#', timeout=10)
-            self.session.sendline('exit')  # Exit global config
-            self.session.expect('#', timeout=10)
+        elif option == '2':
+            # Compare running config with startup config on the device
+            self.creating_loopback()
 
-            # Save the configuration
-            self.save_config()
+        elif option == '3':
+            print("Exiting comparison. Goodbye!")
 
-        except pexpect.exceptions.TIMEOUT:
-            print("Timeout occurred while creating loopback interface.")
-        except pexpect.exceptions.EOF:
-            print("Connection closed unexpectedly. Check the SSH session or device configuration.")
-        except Exception as e:
-            print(f"An error occurred while creating the loopback interface: {e}")
-
-
-
-
+        else:
+            print("Invalid option")
+    
     def save_config(self):
-        try:
-            self.session.sendline('write memory')
-            self.session.expect('#', timeout=10)
-            print("Configuration saved successfully.")
-        except pexpect.exceptions.TIMEOUT:
-            print("Timeout occurred while saving the configuration.")
-        except pexpect.exceptions.EOF:
-            print("Connection closed unexpectedly during save.")
-        except Exception as e:
-            print(f"An error occurred while saving the configuration: {e}")
+            try:
+                # Save the running configuration to the startup configuration
+                self.session.sendline('write memory')
+                self.session.expect('#')
+            except Exception as e:
+                print(f"An error occurred while saving the configuration: {e}")
 
+
+            except pexpect.exceptions.TIMEOUT:
+                print("Timeout occurred while creating loopback interface.")
+            except Exception as e:
+                print(f"An error occurred: {e}")
 
     # Show IP interface brief
     def show_ip_interface_brief(self):
@@ -124,240 +133,82 @@ class SSHTONetworkSession:
         except Exception as e:
             print(f"An error occurred while fetching interface details: {e}")
 
-            
 
-    # Menu for comparing configurations
-    def menu(self):
-        while True:
-            print("\n--- Configurations ---")
-            print("1. Show IP interface brief")
-            print("2. Create a loopback interface")
-            print("3. Create OSPF")
-            print("4. Advertise OSPF")
-            print("5. Create EIGRP")
-            print("6. Advertise EIGRP")
-            print("7. Create RIP.")
-            print("8. Advertise RIP")
-            print("9. Exit")
+    # Creating a loopback interface
+    def creating_loopback(self):
 
-            option = input('Choose an option: ')
-
-            if option == '1':
-                # Show IP interface brief, including the new loopback
-                self.show_ip_interface_brief()
-                
-            
-            elif option == '2':
-                # Create a loopback interface
-                self.creating_loopback()
-
-            elif option == '3':
-                self.creating_ospf()
-                
-            elif option =='4':
-                self.advertise_OSPF()
-
-            elif option =='5':
-                self.creating_eigrp()
-            
-            elif option =='6':
-                self.advertise_EIGRP()
-            
-            elif option =='7':
-                self.creating_rip()
-
-            elif option =='8':
-                self.advertise_RIP()
-
-
-
-            elif option == '9':
-                print("Exiting comparison menu.")
-                break
-            else:
-                print("Invalid option.")
-
-
-    
-    
-    
-
-    def creating_ospf(self):
         try:
-            # Get the process ID, network ID, wildcard, and area from the user
-            process_id = input("Enter the process ID: ")
-            net_id = input("Enter the network address: ")
-            wildcard = input("Enter the wildcard mask: ")
-            area = input("Enter the area: ")
+            # Get loopback IP and subnet
+            loopback_address = input("Enter loopback IP address: ")
+            subnet = input("Enter subnet mask: ")
 
-            # Configure OSPF
+            # Configure the loopback interface
             self.session.sendline('configure terminal')
             self.session.expect(r'\(config\)#')
-            self.session.sendline(f'router ospf {process_id}')
-            self.session.expect(r'\(config-router\)#')
-            self.session.sendline(f'network {net_id} {wildcard} area {area}')
-            self.session.expect(r'\(config-router\)#')
-            print('OSPF successfully created.')
+            self.session.sendline('interface loopback 0')
+            self.session.expect(r'\(config-if\)#')
+            self.session.sendline(f'ip address {loopback_address} {subnet}')
+            self.session.expect(r'\(config-if\)#')
+            print('Loopback interface created successfully.')
+            self.session.sendline('no shutdown')
+            self.session.expect(r'\(config-if\)#')
 
             # Exit configuration mode
-            self.session.sendline('exit')  # Exit OSPF config
+            self.session.sendline('exit')  # Exit interface config
             self.session.expect(r'\(config\)#')
             self.session.sendline('exit')  # Exit global config
             self.session.expect('#')
 
-            # Save the configuration to ensure it persists
-            self.session.sendline('write memory')  # Save the configuration
-            self.session.expect('#')
+            # Save the configuration
+            self.save_config()
             print("Configuration saved successfully.")
 
         except Exception as e:
-            print(f"An error occurred while creating OSPF: {e}")
+            print(f"An error occurred while creating the loopback interface: {e}")
 
+    def get_running_config(self):
+        # Retrieve current running configurations from the device
+        try:
+            self.session.sendline('show running-config')
+            self.session.expect('#', timeout=30)
+            return self.session.before
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout while waiting for running config.")
+        except pexpect.exceptions.EOF:
+            print("The SSH session was unexpectedly closed.")
+        return ""  # In case of an error, return an empty string
     
-    def creating_eigrp(self):
-        try:
-            # Get the autonomous system(AS) number, network ID, and wildcard
-            autonomous_system_number = input("Enter the autonomous system number: ")
-            net_id = input("Enter the network address: ")
-            wildcard = input("Enter the wildcard mask: ")
-
-            # Configure EIGRP
-            self.session.sendline('configure terminal')
-            self.session.expect(r'\(config\)#')
-            self.session.sendline(f'router eigrp {autonomous_system_number}')
-            self.session.expect(r'\(config-router\)#')
-            self.session.sendline(f'network {net_id} {wildcard}')
-            self.session.expect(r'\(config-router\)#')
-            print('EIGRP successfully created.')
-
-            # Exit configuration mode
-            self.session.sendline('exit')  # Exit EIGRP config
-            self.session.expect(r'\(config\)#')
-            self.session.sendline('exit')  # Exit global config
-            self.session.expect('#')
-
-            # Save the configuration to ensure it persists
-            self.session.sendline('write memory')  # Save the configuration
-            self.session.expect('#')
-            print("Configuration saved successfully.")
-
-        except Exception as e:
-            print(f"An error occurred while creating EIGRP: {e}")
-
-    
-    def creating_rip(self):
-        try:
-            version = input("Specify version (1/2): {version} ")
-            net_id = input("Enter the network address: ")
-
-            # Configure RIP
-            self.session.sendline('configure terminal')
-            self.session.expect(r'\(config\)#')
-            self.session.sendline(f'router rip')
-            self.session.expect(r'\(config-router\)#')
-            self.session.sendline(f'network {net_id}')
-            self.session.expect(r'\(config-router\)#')
-            print('RIP successfully created.')
-
-            # Exit configuration mode
-            self.session.sendline('exit')
-            self.session.expect(r'\(config\)#')
-            self.session.sendline('exit')  # Exit global config
-            self.session.expect('#')
-
-            # Save the configuration to ensure it persists
-            self.session.sendline('write memory')  # Save the configuration
-            self.session.expect('#')
-            print("Configuration saved successfully.")
-
-        except Exception as e:
-            print(f"An error occurred while creating rip: {e}")
-
-
-    def advertise_RIP(self):
-        try:
-            self.session.sendline('show running-config | include router rip')
-            self.session.expect('#')  # Wait for the prompt
-            output = self.session.before  # Capture the output
-
-            # Print the OSPF configuration
-            print("\n--- rip Configuration ---")
-            print(output)
-            
-        except Exception as e:
-            print(f"An error occurred while fetching rip configuration: {e}")
-        
-
-
-
-        
     
 
-    def advertise_EIGRP(self):
-        try:
-            self.session.sendline('show running-config | include router eigrp')
-            self.session.expect('#')  # Wait for the prompt
-            output = self.session.before  # Capture the output
 
-            # Print the OSPF configuration
-            print("\n--- eigrp Configuration ---")
-            print(output)
-            
-        except Exception as e:
-            print(f"An error occurred while fetching eigrp configuration: {e}")
-
-            
-
-
-    def advertise_OSPF(self):
-        try:
-            # Send the command to display the OSPF configuration (including the 'network' statements)
-            self.session.sendline('show running-config | include router ospf')
-            self.session.expect('#')  # Wait for the prompt
-            output = self.session.before  # Capture the output
-
-            # Print the OSPF configuration
-            print("\n--- OSPF Configuration ---")
-            print(output)
-            
-        except Exception as e:
-            print(f"An error occurred while fetching OSPF configuration: {e}")
-
-
-
-
-            
-
-
-
-# Menu to start SSH session
 def menu():
     while True:
-        print('--------- MENU ---------')
+        print('---------MENU---------')
         print('a. SSH Session')
         print('b. Exit')
 
-        option = input('Choose an option: ')
+        options = input('Choose from the below options: ')
 
-        if option == 'a':
+        if options == 'a':
+            # For SSH connection
             print("SSH SESSION SELECTED")
             host_ip = input('Enter IP address: ')
             username = input('Enter username: ')
             password = input('Enter password: ')
             hostname = input('Enter new hostname: ')
             enable_password = input('Enter enable password (if any): ')
-
             ssh = SSHTONetworkSession(host_ip, username, password, hostname, enable_password)
             ssh.ssh_session()
 
-        elif option == 'b':
-            print('Session cancelled. Goodbye.')
+        elif options == 'b':
+            # Exit
+            print('Session cancelled. Goodbye')
             break
 
         else:
-            print("Invalid option.")
+            print("Invalid option")
 
 
-# Entry point of the program
+# Program entry point
 if __name__ == "__main__":
     menu()
