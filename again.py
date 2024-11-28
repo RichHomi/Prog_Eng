@@ -136,33 +136,39 @@ class SSHTONetworkSession:
 
     # Creating a loopback interface
     def creating_loopback(self):
-
         try:
             # Get loopback IP and subnet
             loopback_address = input("Enter loopback IP address: ")
             subnet = input("Enter subnet mask: ")
 
-            # Configure the loopback interface
+            # Enter configuration mode
             self.session.sendline('configure terminal')
-            self.session.expect(r'\(config\)#')
+            self.session.expect(r'\(config\)#', timeout=10)
+            
+            # Configure the loopback interface
             self.session.sendline('interface loopback 0')
-            self.session.expect(r'\(config-if\)#')
+            self.session.expect(r'\(config-if\)#', timeout=10)
+            
             self.session.sendline(f'ip address {loopback_address} {subnet}')
-            self.session.expect(r'\(config-if\)#')
-            print('Loopback interface created successfully.')
+            self.session.expect(r'\(config-if\)#', timeout=10)
             self.session.sendline('no shutdown')
-            self.session.expect(r'\(config-if\)#')
+            self.session.expect(r'\(config-if\)#', timeout=10)
+
+            print('Loopback interface created successfully.')
 
             # Exit configuration mode
             self.session.sendline('exit')  # Exit interface config
-            self.session.expect(r'\(config\)#')
+            self.session.expect(r'\(config\)#', timeout=10)
             self.session.sendline('exit')  # Exit global config
-            self.session.expect('#')
+            self.session.expect('#', timeout=10)
 
             # Save the configuration
             self.save_config()
-            print("Configuration saved successfully.")
 
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout occurred while creating loopback interface.")
+        except pexpect.exceptions.EOF:
+            print("Connection closed unexpectedly. Check the SSH session or device configuration.")
         except Exception as e:
             print(f"An error occurred while creating the loopback interface: {e}")
 
