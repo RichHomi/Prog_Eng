@@ -84,26 +84,40 @@ class SSHTONetworkSession:
 
     def compare_configs_menu(self):
         # User chooses from the menu
-        print("\n--- Compare Configurations ---")
-        print("1. Compare running config with local version")
-        print("2. Compare running config with startup config on device")
+        print("\n--- Menu ---")
+        print("1. Show ip interface brief")
+        print("2. Creating loopback")
         print("3. Exit")
 
         option = input('Choose an option: ')
 
         if option == '1':
-            # Compare running config (labs_assignment_ssh.txt) with local device (devices-06.txt)
-            self.show_ip_interface_brief('Show ip interface brief')
+            #show ip interface brief
+            self.show_ip_interface_brief()
 
         elif option == '2':
             # Compare running config with startup config on the device
-            self.compare_with_startup_config_ssh()
+            self.creating_loopback()
 
         elif option == '3':
             print("Exiting comparison. Goodbye!")
 
         else:
             print("Invalid option")
+    
+    def save_config(self):
+            try:
+                # Save the running configuration to the startup configuration
+                self.session.sendline('write memory')
+                self.session.expect('#')
+            except Exception as e:
+                print(f"An error occurred while saving the configuration: {e}")
+
+
+            except pexpect.exceptions.TIMEOUT:
+                print("Timeout occurred while creating loopback interface.")
+            except Exception as e:
+                print(f"An error occurred: {e}")
 
     # Show IP interface brief
     def show_ip_interface_brief(self):
@@ -120,29 +134,37 @@ class SSHTONetworkSession:
             print(f"An error occurred while fetching interface details: {e}")
 
 
-    def compare_with_startup_config_ssh(self):
-        print("\n--- Running Config vs Startup Config ---")
+    # Creating a loopback interface
+    def creating_loopback(self):
 
         try:
-            # Get startup configuration
-            self.session.sendline('show startup-config')
-            self.session.expect('#', timeout=30)  # Wait for the prompt after the command
-            startup_config = self.session.before.splitlines()  # Split into lines
+            # Get loopback IP and subnet
+            loopback_address = input("Enter loopback IP address: ")
+            subnet = input("Enter subnet mask: ")
 
-            # Get running configuration
-            running_config = self.get_running_config().splitlines()  # Split into lines
+            # Configure the loopback interface
+            self.session.sendline('configure terminal')
+            self.session.expect(r'\(config\)#')
+            self.session.sendline('interface loopback 0')
+            self.session.expect(r'\(config-if\)#')
+            self.session.sendline(f'ip address {loopback_address} {subnet}')
+            self.session.expect(r'\(config-if\)#')
+            print('Loopback interface created successfully.')
+            self.session.sendline('no shutdown')
+            self.session.expect(r'\(config-if\)#')
 
-            # Compare running configurations with the startup configuration
-            differences = difflib.unified_diff(startup_config, running_config, fromfile='Startup Config', tofile='Running Config', lineterm='')
-            for line in differences:
-                print(line)
+            # Exit configuration mode
+            self.session.sendline('exit')  # Exit interface config
+            self.session.expect(r'\(config\)#')
+            self.session.sendline('exit')  # Exit global config
+            self.session.expect('#')
 
-        except pexpect.exceptions.TIMEOUT:
-            print("Timeout. Session may be disconnected or timed out.")
-        except pexpect.exceptions.EOF:
-            print("SSH session unexpectedly closed.")
+            # Save the configuration
+            self.save_config()
+            print("Configuration saved successfully.")
+
         except Exception as e:
-            print(f"Error during comparison: {e}")
+            print(f"An error occurred while creating the loopback interface: {e}")
 
     def get_running_config(self):
         # Retrieve current running configurations from the device
