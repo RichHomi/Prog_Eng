@@ -93,7 +93,7 @@ class SSHTONetworkSession:
 
         if option == '1':
             # Compare running config (labs_assignment_ssh.txt) with local device (devices-06.txt)
-            self.compare_configs('labs_assignment_ssh.txt', 'devices-06.txt')
+            self.show_ip_interface_brief('Show ip interface brief')
 
         elif option == '2':
             # Compare running config with startup config on the device
@@ -105,23 +105,20 @@ class SSHTONetworkSession:
         else:
             print("Invalid option")
 
-    def compare_configs(self, saved_config_path, compare_config_path):
+    # Show IP interface brief
+    def show_ip_interface_brief(self):
         try:
-            # Compare the file after reading the configurations
-            with open(saved_config_path, "r") as f:
-                saved_config = f.readlines()
+            # Send the command to the device
+            self.session.sendline('show ip interface brief')
+            self.session.expect('#')  # Wait for the prompt
+            output = self.session.before  # Capture the output
 
-            with open(compare_config_path, "r") as f:
-                compare_config = f.readlines()
+            # Print the output to the user
+            print("\n--- IP Interface Brief ---")
+            print(output)
+        except Exception as e:
+            print(f"An error occurred while fetching interface details: {e}")
 
-            # Compare both configurations using difflib
-            differences = difflib.unified_diff(saved_config, compare_config, fromfile=saved_config_path, tofile=compare_config_path, lineterm='')
-            print("\n--- Configuration Differences ---")
-            for line in differences:
-                print(line)
-
-        except FileNotFoundError:
-            print(f"File {saved_config_path} or {compare_config_path} not found for comparison.")
 
     def compare_with_startup_config_ssh(self):
         print("\n--- Running Config vs Startup Config ---")
@@ -158,6 +155,8 @@ class SSHTONetworkSession:
         except pexpect.exceptions.EOF:
             print("The SSH session was unexpectedly closed.")
         return ""  # In case of an error, return an empty string
+    
+    
 
 
 def menu():
