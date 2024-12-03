@@ -102,13 +102,28 @@ class SSHTONetworkSession:
             print(f"Error creating OSPF: {e}")
 
 
-    def advertise_ospf(self):
+   def advertise_ospf(self):
         try:
+            # Send the command to display the OSPF configuration
+            self.session.sendline('show ip ospf')
+            self.session.expect('#', timeout=10)
+            
+            # Capture and print the OSPF configuration details
+            raw_output = self.session.before
+            print("\n--- OSPF Configuration Details ---")
+            print(raw_output)
+            
+            # Verify which interfaces are advertising OSPF
             self.session.sendline('show ip ospf interface')
             self.session.expect('#', timeout=10)
-        
+            
+            # Capture and print the OSPF interfaces
+            raw_output = self.session.before
+            print("\n--- OSPF Interfaces ---")
+            print(raw_output)
+            
         except pexpect.exceptions.TIMEOUT:
-            print("Timeout while retrieving interface information.")
+            print("Timeout while retrieving OSPF information.")
         except Exception as e:
             print(f"Error: {e}")
 
