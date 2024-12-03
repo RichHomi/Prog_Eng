@@ -167,7 +167,6 @@ class SSHTONetworkSession:
     
     # Creating a loopback interface
     def creating_loopback(self):
-
         try:
             # Get loopback IP and subnet
             loopback_address = input("Enter loopback IP address: ")
@@ -175,41 +174,58 @@ class SSHTONetworkSession:
 
             # Configure the loopback interface
             self.session.sendline('configure terminal')
-            self.session.expect(r'\(config\)#')
-            self.session.sendline('interface loopback 0')
-            self.session.expect(r'\(config-if\)#')
-            self.session.sendline(f'ip address {loopback_address} {subnet}')
-            self.session.expect(r'\(config-if\)#')
-            print('Loopback interface created successfully.')
-            self.session.sendline('no shutdown')
-            self.session.expect(r'\(config-if\)#')
+            result = self.session.expect(r'\(config\)#', timeout=10)
+            if result != 0:
+                raise Exception("Failed to enter configuration mode.")
 
-            # Exit configuration mode
-            self.session.sendline('exit')  # Exit interface config
-            self.session.expect(r'\(config\)#')
-            self.session.sendline('exit')  # Exit global config
-            self.session.expect('#')
+            self.session.sendline('interface loopback 0')
+            result = self.session.expect(r'\(config-if\)#', timeout=10)
+            if result != 0:
+                raise Exception("Failed to enter interface configuration mode.")
+
+            self.session.sendline(f'ip address {loopback_address} {subnet}')
+            result = self.session.expect(r'\(config-if\)#', timeout=10)
+            if result != 0:
+                raise Exception("Failed to configure IP address on loopback interface.")
+
+            # Bring up the interface
+            self.session.sendline('no shutdown')
+            result = self.session.expect(r'\(config-if\)#', timeout=10)
+            if result != 0:
+                raise Exception("Failed to bring up the loopback interface.")
+
+            # Exit interface configuration
+            self.session.sendline('exit')
+            self.session.expect(r'\(config\)#', timeout=10)
+
+            # Exit global configuration mode
+            self.session.sendline('exit')
+            self.session.expect(r'#', timeout=10)
 
             # Save the configuration
             self.save_config()
-            print("Configuration saved successfully.")
+            print("Loopback interface created and configuration saved successfully.")
 
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout occurred while creating loopback interface.")
+        except pexpect.exceptions.EOF:
+            print("The SSH session was unexpectedly closed.")
         except Exception as e:
             print(f"An error occurred while creating the loopback interface: {e}")
     
     def save_config(self):
-            try:
-                # Save the running configuration to the startup configuration
-                self.session.sendline('write memory')
-                self.session.expect('#')
-            except Exception as e:
-                print(f"An error occurred while saving the configuration: {e}")
+        try:
+            # Save the running configuration to the startup configuration
+            self.session.sendline('write memory')
+            result = self.session.expect('#', timeout=10)
+            if result != 0:
+                raise Exception("Failed to save configuration to startup-config.")
+            print("Configuration saved successfully.")
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout occurred while saving the configuration.")
+        except Exception as e:
+            print(f"An error occurred while saving the configuration: {e}")
 
-
-            except pexpect.exceptions.TIMEOUT:
-                print("Timeout occurred while creating loopback interface.")
-            except Exception as e:
-                print(f"An error occurred: {e}")
 
 
 
