@@ -1,10 +1,39 @@
 import difflib  # To handle the comparisons
 import pexpect  # To handle SSH session
+import threading  # For multithreading
+from flask import Flask, render_template, request, jsonify  # Flask for web interface
+import sqlite3  # For database storage
 
+# Flask web interface setup
+app = Flask(__name__)
+
+# Database setup
+def setup_database():
+    conn = sqlite3.connect('network_configurations.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS configurations (
+            id INTEGER PRIMARY KEY,
+            type TEXT,
+            details TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def save_configuration(config_type, config_details):
+    """Saves a configuration to the database."""
+    conn = sqlite3.connect('network_configurations.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO configurations (type, details) VALUES (?, ?)',
+                   (config_type, config_details))
+    conn.commit()
+    conn.close()
 
 # SSH class for managing network sessions
 class SSHTONetworkSession:
     def __init__(self, ip_address, username, password, hostname, enable_password=''):
+        """Initializes the SSH session with the given parameters."""
         self.ip_address = ip_address
         self.username = username
         self.password = password
@@ -12,8 +41,8 @@ class SSHTONetworkSession:
         self.enable_password = enable_password
         self.session = None
 
-    # Initiate SSH session
     def ssh_session(self):
+        """Establishes an SSH session and sets the hostname."""
         self.session = pexpect.spawn(f'ssh {self.username}@{self.ip_address}', encoding='utf-8', timeout=20)
         result = self.session.expect(['Password:', pexpect.TIMEOUT, pexpect.EOF])
         if result != 0:
@@ -57,302 +86,194 @@ class SSHTONetworkSession:
         print('Session ready for further commands.')
         self.compare_configs_menu()
 
-    # Creating a loopback interface
-    def creating_loopback(self):
-
+    def creating_loopback(self, ip_address, subnet):
+        """Creates a loopback interface with the given IP address and subnet."""
         try:
-            # Get loopback IP and subnet
-            loopback_address = input("Enter loopback IP address: ")
-            subnet = input("Enter subnet mask: ")
-
-            # Configure the loopback interface
             self.session.sendline('configure terminal')
             self.session.expect(r'\(config\)#')
             self.session.sendline('interface loopback 0')
             self.session.expect(r'\(config-if\)#')
-            self.session.sendline(f'ip address {loopback_address} {subnet}')
+            self.session.sendline(f'ip address {ip_address} {subnet}')
             self.session.expect(r'\(config-if\)#')
-            print('Loopback interface created successfully.')
-            self.session.sendline('no shutdown')
-            self.session.expect(r'\(config-if\)#')
-
-            # Exit configuration mode
-            self.session.sendline('exit')  # Exit interface config
-            self.session.expect(r'\(config\)#')
-            self.session.sendline('exit')  # Exit global config
-            self.session.expect('#')
-
-            # Save the configuration
-            self.save_config()
-            print("Configuration saved successfully.")
-
+            self.session.sendline('end')
+            self.session.expect(r'#')
+            self.session.sendline('write memory')
+            self.session.expect(r'#')
+            print('Loopback interface created and configuration saved successfully.')
+            save_configuration("Loopback", f"IP: {ip_address}, Subnet: {subnet}")
         except Exception as e:
-            print(f"An error occurred while creating the loopback interface: {e}")
-
-
-
-    def save_config(self):
-            try:
-                # Save the running configuration to the startup configuration
-                self.session.sendline('write memory')
-                self.session.expect('#')
-            except Exception as e:
-                print(f"An error occurred while saving the configuration: {e}")
-
-
-            except pexpect.exceptions.TIMEOUT:
-                print("Timeout occurred while creating loopback interface.")
-            except Exception as e:
-                print(f"An error occurred: {e}")
-
-    # Show IP interface brief
-    def show_ip_interface_brief(self):
-        try:
-            # Send the command to the device
-            self.session.sendline('show ip interface brief')
-            self.session.expect('#')  # Wait for the prompt
-            output = self.session.before  # Capture the output
-
-            # Print the output to the user
-            print("\n--- IP Interface Brief ---")
-            print(output)
-        except Exception as e:
-            print(f"An error occurred while fetching interface details: {e}")
-
-            
-
-    # Menu for comparing configurations
-    def menu(self):
-        while True:
-            print("\n--- Configurations ---")
-            print("1. Show IP interface brief")
-            print("2. Create a loopback interface")
-            print("3. Create OSPF")
-            print("4. Advertise OSPF")
-            print("5. Create EIGRP")
-            print("6. Advertise EIGRP")
-            print("7. Create RIP.")
-            print("8. Advertise RIP")
-            print("9. Exit")
-
-            option = input('Choose an option: ')
-
-            if option == '1':
-                # Show IP interface brief, including the new loopback
-                self.show_ip_interface_brief()
-                
-            
-            elif option == '2':
-                # Create a loopback interface
-                self.creating_loopback()
-
-            elif option == '3':
-                self.creating_ospf()
-                
-            elif option =='4':
-                self.advertise_OSPF()
-
-            elif option =='5':
-                self.creating_eigrp()
-            
-            elif option =='6':
-                self.advertise_EIGRP()
-            
-            elif option =='7':
-                self.creating_rip()
-
-            elif option =='8':
-                self.advertise_RIP()
-
-
-
-            elif option == '9':
-                print("Exiting comparison menu.")
-                break
-            else:
-                print("Invalid option.")
-
-
-    
-    
-    
+            print(f"Error creating loopback interface: {e}")
 
     def creating_ospf(self):
+        """Configures OSPF with user input for process ID, network, and area."""
         try:
-            # Get the process ID, network ID, wildcard, and area from the user
             process_id = input("Enter the process ID: ")
             net_id = input("Enter the network address: ")
             wildcard = input("Enter the wildcard mask: ")
             area = input("Enter the area: ")
 
-            # Configure OSPF
             self.session.sendline('configure terminal')
             self.session.expect(r'\(config\)#')
             self.session.sendline(f'router ospf {process_id}')
             self.session.expect(r'\(config-router\)#')
             self.session.sendline(f'network {net_id} {wildcard} area {area}')
             self.session.expect(r'\(config-router\)#')
-            print('OSPF successfully created.')
-
-            # Exit configuration mode
-            self.session.sendline('exit')  # Exit OSPF config
-            self.session.expect(r'\(config\)#')
-            self.session.sendline('exit')  # Exit global config
-            self.session.expect('#')
-
-            # Save the configuration to ensure it persists
-            self.session.sendline('write memory')  # Save the configuration
-            self.session.expect('#')
-            print("Configuration saved successfully.")
-
+            self.session.sendline('end')
+            self.session.expect(r'#')
+            self.session.sendline('write memory')
+            self.session.expect(r'#')
+            print('OSPF configuration created and saved successfully.')
+            save_configuration("OSPF", f"Process ID: {process_id}, Network: {net_id} {wildcard}, Area: {area}")
         except Exception as e:
-            print(f"An error occurred while creating OSPF: {e}")
+            print(f"Error creating OSPF: {e}")
 
-    
     def creating_eigrp(self):
+        """Configures EIGRP with user input for AS number, network, and wildcard mask."""
         try:
-            # Get the autonomous system(AS) number, network ID, and wildcard
             autonomous_system_number = input("Enter the autonomous system number: ")
             net_id = input("Enter the network address: ")
             wildcard = input("Enter the wildcard mask: ")
 
-            # Configure EIGRP
             self.session.sendline('configure terminal')
             self.session.expect(r'\(config\)#')
             self.session.sendline(f'router eigrp {autonomous_system_number}')
             self.session.expect(r'\(config-router\)#')
             self.session.sendline(f'network {net_id} {wildcard}')
             self.session.expect(r'\(config-router\)#')
-            print('EIGRP successfully created.')
-
-            # Exit configuration mode
-            self.session.sendline('exit')  # Exit EIGRP config
-            self.session.expect(r'\(config\)#')
-            self.session.sendline('exit')  # Exit global config
-            self.session.expect('#')
-
-            # Save the configuration to ensure it persists
-            self.session.sendline('write memory')  # Save the configuration
-            self.session.expect('#')
-            print("Configuration saved successfully.")
-
+            self.session.sendline('end')
+            self.session.expect(r'#')
+            self.session.sendline('write memory')
+            self.session.expect(r'#')
+            print('EIGRP configuration created and saved successfully.')
+            save_configuration("EIGRP", f"AS: {autonomous_system_number}, Network: {net_id} {wildcard}")
         except Exception as e:
-            print(f"An error occurred while creating EIGRP: {e}")
-
-    
-    def creating_rip(self):
+            print(f"Error creating EIGRP: {e}")
+    def show_ip_interface_brief(self):
+        """Displays the brief summary of IP interfaces."""
         try:
-            version = input("Specify version (1/2): {version} ")
-            net_id = input("Enter the network address: ")
+            self.session.sendline('show ip interface brief')
+            self.session.expect('#', timeout=10)
+            raw_output = self.session.before
+            output_lines = raw_output.splitlines()
+            filtered_lines = [line.strip() for line in output_lines if line.strip()]
+            print("\n--- IP Interface Brief ---")
+            for line in filtered_lines:
+                if "Interface" in line or "up" in line or "down" in line:
+                    print(line)
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout while retrieving interface information.")
+        except Exception as e:
+            print(f"Error: {e}")
 
-            # Configure RIP
+    def advertise_ospf(self):
+        """Advertises OSPF with user input for network and area."""
+        try:
+            network = input("Enter the OSPF network to advertise (e.g., 192.168.1.0): ")
+            wildcard = input("Enter the wildcard mask (e.g., 0.0.0.255): ")
+            area = input("Enter the OSPF area (e.g., 0): ")
+
             self.session.sendline('configure terminal')
             self.session.expect(r'\(config\)#')
-            self.session.sendline(f'router rip')
+            self.session.sendline(f'router ospf 1')  # Assumes process ID is 1; modify as needed
             self.session.expect(r'\(config-router\)#')
-            self.session.sendline(f'network {net_id}')
+            self.session.sendline(f'network {network} {wildcard} area {area}')
             self.session.expect(r'\(config-router\)#')
-            print('RIP successfully created.')
+            self.session.sendline('end')
+            self.session.expect('#')
+            self.session.sendline('write memory')
+            self.session.expect('#')
+            print('OSPF advertisement configured and saved successfully.')
+            save_configuration("OSPF Advertisement", f"Network: {network}, Wildcard: {wildcard}, Area: {area}")
+        except Exception as e:
+            print(f"Error advertising OSPF: {e}")
 
-            # Exit configuration mode
-            self.session.sendline('exit')
+    def advertise_eigrp(self):
+        """Advertises EIGRP with user input for network and wildcard mask."""
+        try:
+            network = input("Enter the EIGRP network to advertise (e.g., 192.168.1.0): ")
+            wildcard = input("Enter the wildcard mask (e.g., 0.0.0.255): ")
+
+            self.session.sendline('configure terminal')
             self.session.expect(r'\(config\)#')
-            self.session.sendline('exit')  # Exit global config
+            self.session.sendline(f'router eigrp 1')  # Assumes AS number is 1; modify as needed
+            self.session.expect(r'\(config-router\)#')
+            self.session.sendline(f'network {network} {wildcard}')
+            self.session.expect(r'\(config-router\)#')
+            self.session.sendline('end')
             self.session.expect('#')
-
-            # Save the configuration to ensure it persists
-            self.session.sendline('write memory')  # Save the configuration
+            self.session.sendline('write memory')
             self.session.expect('#')
-            print("Configuration saved successfully.")
-
+            print('EIGRP advertisement configured and saved successfully.')
+            save_configuration("EIGRP Advertisement", f"Network: {network}, Wildcard: {wildcard}")
         except Exception as e:
-            print(f"An error occurred while creating rip: {e}")
+            print(f"Error advertising EIGRP: {e}")
 
+    def compare_configs_menu(self):
+        """Displays a menu for different configuration options."""
+        while True:
+            print("\n--- Interface Menu ---")
+            print("1. Show IP interface brief")
+            print("2. Create a loopback interface")
+            print("3. Create an OSPF")
+            print("4. Create an EIGRP")
+            print("5. Advertise OSPF")
+            print("6. Advertise EIGRP")
+            print("7. Exit")
 
-    def advertise_RIP(self):
-        try:
-            self.session.sendline('show running-config | include router rip')
-            self.session.expect('#')  # Wait for the prompt
-            output = self.session.before  # Capture the output
+            option = input('Choose an option: ')
+            if option == '1':
+                self.show_ip_interface_brief()
+            elif option == '2':
+                ip_address = input("Enter loopback IP address: ")
+                subnet = input("Enter subnet mask: ")
+                threading.Thread(target=self.creating_loopback, args=(ip_address, subnet)).start()
+            elif option == '3':
+                threading.Thread(target=self.creating_ospf).start()
+            elif option == '4':
+                threading.Thread(target=self.creating_eigrp).start()
+            elif option == '5':
+                threading.Thread(target=self.advertise_ospf).start()
+            elif option == '6':
+                threading.Thread(target=self.advertise_eigrp).start()
+            elif option == '7':
+                print("Exiting comparison menu.")
+                break
+            else:
+                print("Invalid option.")
 
-            # Print the OSPF configuration
-            print("\n--- rip Configuration ---")
-            print(output)
-            
-        except Exception as e:
-            print(f"An error occurred while fetching rip configuration: {e}")
-        
-
-
-
-        
-    
-
-    def advertise_EIGRP(self):
-        try:
-            self.session.sendline('show running-config | include router eigrp')
-            self.session.expect('#')  # Wait for the prompt
-            output = self.session.before  # Capture the output
-
-            # Print the OSPF configuration
-            print("\n--- eigrp Configuration ---")
-            print(output)
-            
-        except Exception as e:
-            print(f"An error occurred while fetching eigrp configuration: {e}")
-
-            
-
-
-    def advertise_OSPF(self):
-        try:
-            # Send the command to display the OSPF configuration (including the 'network' statements)
-            self.session.sendline('show running-config | include router ospf')
-            self.session.expect('#')  # Wait for the prompt
-            output = self.session.before  # Capture the output
-
-            # Print the OSPF configuration
-            print("\n--- OSPF Configuration ---")
-            print(output)
-            
-        except Exception as e:
-            print(f"An error occurred while fetching OSPF configuration: {e}")
-
-
-
-
-            
-
-
+# Flask app to run in a separate thread
+def run_flask_app():
+    """Runs the Flask application on a separate thread."""
+    app.run(port=5000, debug=True, use_reloader=False)
 
 # Menu to start SSH session
 def menu():
+    """Displays the main menu to choose between SSH session and exiting."""
     while True:
         print('--------- MENU ---------')
         print('a. SSH Session')
         print('b. Exit')
 
         option = input('Choose an option: ')
-
         if option == 'a':
             print("SSH SESSION SELECTED")
             host_ip = input('Enter IP address: ')
             username = input('Enter username: ')
             password = input('Enter password: ')
             hostname = input('Enter new hostname: ')
-            enable_password = input('Enter enable password (if any): ')
+            enable_password = input('Enter enable password (if applicable): ')
 
-            ssh = SSHTONetworkSession(host_ip, username, password, hostname, enable_password)
-            ssh.ssh_session()
-
+            ssh_session = SSHTONetworkSession(host_ip, username, password, hostname, enable_password)
+            ssh_session.ssh_session()
         elif option == 'b':
-            print('Session cancelled. Goodbye.')
+            print('Exiting the program.')
             break
-
         else:
-            print("Invalid option.")
+            print('Invalid option. Please try again.')
 
+# Start Flask app in a separate thread
+flask_thread = threading.Thread(target=run_flask_app)
+flask_thread.start()
 
-# Entry point of the program
-if __name__ == "__main__":
-    menu()
+# Start the menu
+menu()
