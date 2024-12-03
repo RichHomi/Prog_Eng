@@ -25,7 +25,7 @@ class SSHTONetworkSession:
             self.session.sendline(self.password)
             result = self.session.expect(['>', '#', pexpect.TIMEOUT, pexpect.EOF])
 
-            if result != 1:
+            if result not in [0, 1]:
                 print('Error: Authentication failed. Please check your password.')
                 return
 
@@ -48,7 +48,7 @@ class SSHTONetworkSession:
                 return
 
             self.session.sendline(f'hostname {self.hostname}')
-            result = self.session.expect([rf'{self.hostname}\(config\)#', pexpect.TIMEOUT, pexpect.EOF])
+            result = self.session.expect([rf'{self.hostname}\\(config\\)#', pexpect.TIMEOUT, pexpect.EOF])
 
             if result != 0:
                 print(f'Error: Failed to set hostname to {self.hostname}')
@@ -92,27 +92,27 @@ class SSHTONetworkSession:
             subnet = input("Enter subnet mask: ")
 
             self.session.sendline('configure terminal')
-            result = self.session.expect(r'\(config\)#', timeout=10)
+            result = self.session.expect(r'\\(config\\)#', timeout=10)
             if result != 0:
                 raise Exception("Failed to enter configuration mode.")
 
             self.session.sendline('interface loopback 0')
-            result = self.session.expect(r'\(config-if\)#', timeout=10)
+            result = self.session.expect(r'\\(config-if\\)#', timeout=10)
             if result != 0:
                 raise Exception("Failed to enter interface configuration mode.")
 
             self.session.sendline(f'ip address {loopback_address} {subnet}')
-            result = self.session.expect(r'\(config-if\)#', timeout=10)
+            result = self.session.expect(r'\\(config-if\\)#', timeout=10)
             if result != 0:
                 raise Exception("Failed to configure IP address on loopback interface.")
 
             self.session.sendline('no shutdown')
-            result = self.session.expect(r'\(config-if\)#', timeout=10)
+            result = self.session.expect(r'\\(config-if\\)#', timeout=10)
             if result != 0:
                 raise Exception("Failed to bring up the loopback interface.")
 
             self.session.sendline('exit')
-            self.session.expect(r'\(config\)#', timeout=10)
+            self.session.expect(r'\\(config\\)#', timeout=10)
 
             self.session.sendline('exit')
             self.session.expect(r'#', timeout=10)
