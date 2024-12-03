@@ -127,27 +127,28 @@ class SSHTONetworkSession:
 
     def advertise_ospf(self):
         try:
-            print("Retrieving OSPF status...")
-            self.session.sendline('show ip ospf')
+            print("Retrieving OSPF configuration...")
+            # Send the command to show the OSPF section of the running configuration
+            self.session.sendline('show running-config | section ospf')
             self.session.expect('#', timeout=10)  # Adjust timeout as needed
     
-            # Capture and print the OSPF details
+            # Capture and print the OSPF configuration details
             raw_output = self.session.before
             output_lines = raw_output.splitlines()
             filtered_lines = [line.strip() for line in output_lines if line.strip()]
     
             if not filtered_lines:
-                print("No OSPF status found.")
+                print("No OSPF configuration found.")
             else:
-                print("\n--- OSPF Status ---")
+                print("\n--- OSPF Configuration ---")
                 for line in filtered_lines:
-                    if "OSPF" in line or "Area" in line:
-                        print(line)
+                    print(line)  # Print each line of the OSPF section
     
         except pexpect.exceptions.TIMEOUT:
-            print("Timeout while retrieving OSPF status.")
+            print("Timeout while retrieving OSPF configuration.")
         except Exception as e:
             print(f"Error: {e}")
+
 
 
 
