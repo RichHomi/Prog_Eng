@@ -188,22 +188,27 @@ class SSHTONetworkSession:
             self.session.sendline('show running-config | section eigrp')
             self.session.expect('#', timeout=10)  # Adjust timeout as needed
     
-            # Capture and print the OSPF configuration details
+            # Capture and print the EIGRP configuration details
             raw_output = self.session.before
             output_lines = raw_output.splitlines()
             filtered_lines = [line.strip() for line in output_lines if line.strip()]
     
             if not filtered_lines:
-                print("No eigrp configuration found.")
+                print("No EIGRP configuration found.")
             else:
                 print("\n--- EIGRP Configuration ---")
                 for line in filtered_lines:
-                    print(line)  # Print each line of the EIGRP section
+                    # Print each line of the EIGRP section
+                    if "network" in line:
+                        print(f"Network command with wildcard mask: {line}")
+    
+                    print(line)
     
         except pexpect.exceptions.TIMEOUT:
             print("Timeout while retrieving EIGRP configuration.")
         except Exception as e:
             print(f"Error: {e}")
+
 
 
 
