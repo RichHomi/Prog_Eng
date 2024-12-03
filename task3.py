@@ -182,9 +182,10 @@ class SSHTONetworkSession:
         except Exception as e:
             print(f"Error creating EIGRP: {e}")
 
-    def advertise_eigrp(self):
+   def advertise_eigrp(self):
         try:
-            # Send the command to show the eigrp section of the running configuration
+            print("Retrieving EIGRP configuration...")
+            # Send the command to show the EIGRP section of the running configuration
             self.session.sendline('show running-config | section eigrp')
             self.session.expect('#', timeout=10)  # Adjust timeout as needed
     
@@ -198,11 +199,7 @@ class SSHTONetworkSession:
             else:
                 print("\n--- EIGRP Configuration ---")
                 for line in filtered_lines:
-                    # Print each line of the EIGRP section
-                    if "network" in line:
-                        print(f"Network command with wildcard mask: {line}")
-    
-                    print(line)
+                    print(line)  # Print each line of the EIGRP section
     
         except pexpect.exceptions.TIMEOUT:
             print("Timeout while retrieving EIGRP configuration.")
