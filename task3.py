@@ -81,8 +81,7 @@ class SSHTONetworkSession:
             
             print('Loopback interface created and configuration saved successfully.')
             
-            # Optionally, show the IP interface brief to verify the new interface
-            self.show_ip_interface_brief()
+            
     
         except Exception as e:
             print(f"Error creating loopback interface: {e}")
@@ -108,6 +107,11 @@ class SSHTONetworkSession:
             self.session.sendline(f'network {net_id} {wildcard} area {area}')
             self.session.expect(r'\(config-router\)#')
             
+             #Save the configuration to startup to make it persistent
+            self.session.sendline('end')  # Exit interface configuration mode
+            self.session.expect(r'#')
+            self.session.sendline('write memory')  # Save the running config to startup config
+            self.session.expect(r'#')
             print('OSPF created successfully.')
             self.session.sendline('exit')
             
@@ -115,7 +119,7 @@ class SSHTONetworkSession:
             print(f"Error creating OSPF: {e}")
 
 
-   def advertise_ospf(self):
+    def advertise_ospf(self):
         try:
             # Send the command to show OSPF configuration details without full running config
             self.session.sendline('show ip ospf')
