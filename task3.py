@@ -104,49 +104,48 @@ class SSHTONetworkSession:
 
    def advertise_ospf(self):
         try:
-            # Send the command to show OSPF configuration
-            self.session.sendline('show running-config | section ospf')
+            # Send the command to show OSPF configuration details without full running config
+            self.session.sendline('show ip ospf')
             self.session.expect('#', timeout=10)
-            
-            # Print the output captured from the session
-            output = self.session.before
-            print("\n--- OSPF Configuration ---")
-            print(output)
-    
+
+            # Capture and print the OSPF details
+            raw_output = self.session.before
+            output_lines = raw_output.splitlines()
+            filtered_lines = [line.strip() for line in output_lines if line.strip()]
+
+            print("\n--- OSPF Advertisement ---")
+            for line in filtered_lines:
+                if "Process ID" in line or "Network" in line or "Area" in line:
+                    print(line)  # Print relevant OSPF information
+
         except pexpect.exceptions.TIMEOUT:
             print("Timeout while retrieving OSPF configuration.")
         except Exception as e:
             print(f"Error: {e}")
 
 
-
     # Show IP interface brief
     def show_ip_interface_brief(self):
         try:
-            # Send the command to the device
+            # Send the command to display interface brief status
             self.session.sendline('show ip interface brief')
             self.session.expect('#', timeout=10)  # Wait for the prompt to reappear
 
-            # Capture the session output
+            # Capture and print the output
             raw_output = self.session.before
+            output_lines = raw_output.splitlines()
+            filtered_lines = [line.strip() for line in output_lines if line.strip()]  # Remove empty/whitespace lines
 
-            # Clean the output
-            output_lines = raw_output.splitlines()  # Split output into lines
-            filtered_lines = [line.strip() for line in output_lines if line.strip()]  # Remove empty and whitespace lines
-
-            # Find and print the relevant lines
             print("\n--- IP Interface Brief ---")
-            header_found = False
             for line in filtered_lines:
-                if "Interface" in line:  # Look for the header
-                    header_found = True
-                if header_found:
-                    print(line)  # Print header and subsequent lines
+                if "Interface" in line or "up" in line or "down" in line:
+                    print(line)  # Print header and relevant lines
 
         except pexpect.exceptions.TIMEOUT:
             print("Timeout while retrieving interface information.")
         except Exception as e:
             print(f"Error: {e}")
+
 
     # Menu for comparing configurations
     def compare_configs_menu(self):
