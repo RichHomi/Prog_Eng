@@ -104,28 +104,20 @@ class SSHTONetworkSession:
 
    def advertise_ospf(self):
         try:
-            # Send the command to display the OSPF configuration
-            self.session.sendline('show ip ospf')
+            # Send the command to show OSPF configuration
+            self.session.sendline('show running-config | section ospf')
             self.session.expect('#', timeout=10)
             
-            # Capture and print the OSPF configuration details
-            raw_output = self.session.before
-            print("\n--- OSPF Configuration Details ---")
-            print(raw_output)
-            
-            # Verify which interfaces are advertising OSPF
-            self.session.sendline('show ip ospf interface')
-            self.session.expect('#', timeout=10)
-            
-            # Capture and print the OSPF interfaces
-            raw_output = self.session.before
-            print("\n--- OSPF Interfaces ---")
-            print(raw_output)
-            
+            # Print the output captured from the session
+            output = self.session.before
+            print("\n--- OSPF Configuration ---")
+            print(output)
+    
         except pexpect.exceptions.TIMEOUT:
-            print("Timeout while retrieving OSPF information.")
+            print("Timeout while retrieving OSPF configuration.")
         except Exception as e:
             print(f"Error: {e}")
+
 
 
     # Show IP interface brief
