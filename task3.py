@@ -149,6 +149,62 @@ class SSHTONetworkSession:
         except Exception as e:
             print(f"Error: {e}")
 
+    
+    def creating_eigrp(self):
+        try:
+            # Get the autonomous system(AS) number, network ID, and wildcard
+            autonomous_system_number = input("Enter the autonomous system number: ")
+            net_id = input("Enter the network address: ")
+            wildcard = input("Enter the wildcard mask: ")
+
+            # Enter configuration mode
+            self.session.sendline('configure terminal')
+            self.session.expect(r'\(config\)#')
+    
+            # Create the OSPF router process
+            self.session.sendline(f'router eigrp {autonomous_system_number}')
+            self.session.expect(r'\(config-router\)#')
+    
+            # Configure the network for OSPF
+            self.session.sendline(f'network {net_id} {wildcard}')
+            self.session.expect(r'\(config-router\)#')
+    
+            # Exit configuration mode
+            self.session.sendline('end')
+            self.session.expect(r'#')
+    
+            # Save the configuration to startup
+            self.session.sendline('write memory')
+            self.session.expect(r'#')
+    
+            print('EIGRP configuration created and saved successfully.')
+    
+        except Exception as e:
+            print(f"Error creating EIGRP: {e}")
+
+    def advertise_eigrp(self):
+        try:
+            # Send the command to show the eigrp section of the running configuration
+            self.session.sendline('show running-config | section eigrp')
+            self.session.expect('#', timeout=10)  # Adjust timeout as needed
+    
+            # Capture and print the OSPF configuration details
+            raw_output = self.session.before
+            output_lines = raw_output.splitlines()
+            filtered_lines = [line.strip() for line in output_lines if line.strip()]
+    
+            if not filtered_lines:
+                print("No eigrp configuration found.")
+            else:
+                print("\n--- EIGRP Configuration ---")
+                for line in filtered_lines:
+                    print(line)  # Print each line of the EIGRP section
+    
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout while retrieving EIGRP configuration.")
+        except Exception as e:
+            print(f"Error: {e}")
+
 
 
 
@@ -185,7 +241,9 @@ class SSHTONetworkSession:
             print("4. Create a loopback interface")
             print("5. Create an OSPF")
             print("6. Advertise OSPF")
-            print("7. Exit")
+            print("7. Create an EIGRP")
+            print("8. Advertise EIGRP")
+            print("9. Exit")
 
             option = input('Choose an option: ')
 
@@ -203,8 +261,14 @@ class SSHTONetworkSession:
             
             elif option == '6':
                 self.advertise_ospf()
-
+            
             elif option == '7':
+                self.creating_eigrp()
+
+            elif option == '8':
+                self.advertise_eigrp()
+
+            elif option == '9':
                 print("Exiting comparison menu.")
                 break
             else:
