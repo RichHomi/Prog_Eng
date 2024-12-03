@@ -142,9 +142,9 @@ class SSHTONetworkSession:
             print("2. Compare running config with startup config on device")
             print("3. Show IP interface brief")
             print("4. Create a loopback interface")
-            print("4. Create an OSPF")
-            print("4. Advertise OSPF")
-            print("5. Exit")
+            print("5. Create an OSPF")
+            print("6. Advertise OSPF")
+            print("7. Exit")
 
             option = input('Choose an option: ')
 
@@ -156,7 +156,14 @@ class SSHTONetworkSession:
                 self.show_ip_interface_brief()
             elif option == '4':
                 self.creating_loopback()
+            
             elif option == '5':
+                self.creating_ospf()
+            
+            elif option == '6':
+                self.advertise_ospf()
+
+            elif option == '7':
                 print("Exiting comparison menu.")
                 break
             else:
