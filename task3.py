@@ -150,37 +150,30 @@ class SSHTONetworkSession:
             print(f"Error: {e}")
 
     
-    def creating_eigrp(self):
+    def advertise_eigrp(self):
         try:
-            # Get the autonomous system(AS) number, network ID, and wildcard
-            autonomous_system_number = input("Enter the autonomous system number: ")
-            net_id = input("Enter the network address: ")
-            wildcard = input("Enter the wildcard mask: ")
-
-            # Enter configuration mode
-            self.session.sendline('configure terminal')
-            self.session.expect(r'\(config\)#')
+            print("Retrieving EIGRP network configurations...")
+            # Send the command to show the lines that include network statements in the running configuration
+            self.session.sendline('show running-config | include network')
+            self.session.expect('#', timeout=10)  # Adjust timeout as needed
     
-            # Create the OSPF router process
-            self.session.sendline(f'router eigrp {autonomous_system_number}')
-            self.session.expect(r'\(config-router\)#')
+            # Capture and print the network configuration details
+            raw_output = self.session.before
+            output_lines = raw_output.splitlines()
+            filtered_lines = [line.strip() for line in output_lines if line.strip()]
     
-            # Configure the network for OSPF
-            self.session.sendline(f'network {net_id} {wildcard}')
-            self.session.expect(r'\(config-router\)#')
+            if not filtered_lines:
+                print("No EIGRP network configuration found.")
+            else:
+                print("\n--- EIGRP Network Configuration ---")
+                for line in filtered_lines:
+                    print(line)  # Print each line of the network section, including wildcard mask
     
-            # Exit configuration mode
-            self.session.sendline('end')
-            self.session.expect(r'#')
-    
-            # Save the configuration to startup
-            self.session.sendline('write memory')
-            self.session.expect(r'#')
-    
-            print('EIGRP configuration created and saved successfully.')
-    
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout while retrieving EIGRP network configuration.")
         except Exception as e:
-            print(f"Error creating EIGRP: {e}")
+            print(f"Error: {e}")
+
 
    def advertise_eigrp(self):
         try:
