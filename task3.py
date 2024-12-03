@@ -58,22 +58,35 @@ class SSHTONetworkSession:
         self.compare_configs_menu()
 
     # Creating a loopback interface
+    # Creating a loopback interface and saving it to startup configuration
     def creating_loopback(self):
         try:
             # Ask for IP address and subnet dynamically
             loopback_address = input("Enter loopback IP address: ")
             subnet = input("Enter subnet mask: ")
-
+    
+            # Enter configuration mode and create the loopback interface
             self.session.sendline('configure terminal')
             self.session.expect(r'\(config\)#')
             self.session.sendline('interface loopback 0')
             self.session.expect(r'\(config-if\)#')
             self.session.sendline(f'ip address {loopback_address} {subnet}')
             self.session.expect(r'\(config-if\)#')
-            print('Loopback interface created successfully.')
-            self.session.sendline('exit')
+            
+            # Save the configuration to startup to make it persistent
+            self.session.sendline('end')  # Exit interface configuration mode
+            self.session.expect(r'#')
+            self.session.sendline('write memory')  # Save the running config to startup config
+            self.session.expect(r'#')
+            
+            print('Loopback interface created and configuration saved successfully.')
+            
+            # Optionally, show the IP interface brief to verify the new interface
+            self.show_ip_interface_brief()
+    
         except Exception as e:
             print(f"Error creating loopback interface: {e}")
+
 
     
     def creating_ospf(self):
