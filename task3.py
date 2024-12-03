@@ -142,6 +142,8 @@ class SSHTONetworkSession:
             print("2. Compare running config with startup config on device")
             print("3. Show IP interface brief")
             print("4. Create a loopback interface")
+            print("4. Create an OSPF")
+            print("4. Advertise OSPF")
             print("5. Exit")
 
             option = input('Choose an option: ')
