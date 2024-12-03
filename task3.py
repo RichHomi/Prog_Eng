@@ -83,17 +83,24 @@ class SSHTONetworkSession:
             net_id = input("Enter the network address: ")
             wildcard = input("Enter the wildcard mask: ")
             area = input("Enter the area: ")
-
+    
             self.session.sendline('configure terminal')
             self.session.expect(r'\(config\)#')
-            self.session.sendline('router ospf {process_id}')
-            self.session.expect(r'\(config-if\)#')
+            
+            # Use f-strings to format the process ID into the command string
+            self.session.sendline(f'router ospf {process_id}')
+            self.session.expect(r'\(config-router\)#')
+            
+            # Format the network command with the given network ID, wildcard, and area
             self.session.sendline(f'network {net_id} {wildcard} area {area}')
-            self.session.expect(r'\(config-if\)#')
+            self.session.expect(r'\(config-router\)#')
+            
             print('OSPF created successfully.')
             self.session.sendline('exit')
+            
         except Exception as e:
             print(f"Error creating OSPF: {e}")
+
 
     def advertise_ospf(self):
         try:
