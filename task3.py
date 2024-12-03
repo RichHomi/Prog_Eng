@@ -97,27 +97,31 @@ class SSHTONetworkSession:
             wildcard = input("Enter the wildcard mask: ")
             area = input("Enter the area: ")
     
-            # Enter configuration mode and set up OSPF
+            # Enter configuration mode
             self.session.sendline('configure terminal')
             self.session.expect(r'\(config\)#')
+    
+            # Create the OSPF router process
             self.session.sendline(f'router ospf {process_id}')
             self.session.expect(r'\(config-router\)#')
+    
+            # Configure the network for OSPF
             self.session.sendline(f'network {net_id} {wildcard} area {area}')
             self.session.expect(r'\(config-router\)#')
     
-            # Save the configuration to startup to make it persistent
-            self.session.sendline('end')  # Exit OSPF configuration mode
-            self.session.expect(r'#')
-            self.session.sendline('write memory')  # Save the running config to startup config
+            # Exit configuration mode
+            self.session.sendline('end')
             self.session.expect(r'#')
     
-            print('OSPF created and configuration saved successfully.')
-            
-            # Optionally, show OSPF advertisement to verify the configuration
-            self.advertise_ospf()
+            # Save the configuration to startup
+            self.session.sendline('write memory')
+            self.session.expect(r'#')
+    
+            print('OSPF configuration created and saved successfully.')
     
         except Exception as e:
             print(f"Error creating OSPF: {e}")
+
 
 
 
