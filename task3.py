@@ -75,6 +75,37 @@ class SSHTONetworkSession:
         except Exception as e:
             print(f"Error creating loopback interface: {e}")
 
+    
+    def creating_ospf(self):
+        try:
+            # Get the process ID, network ID, wildcard, and area from the user
+            process_id = input("Enter the process ID: ")
+            net_id = input("Enter the network address: ")
+            wildcard = input("Enter the wildcard mask: ")
+            area = input("Enter the area: ")
+
+            self.session.sendline('configure terminal')
+            self.session.expect(r'\(config\)#')
+            self.session.sendline('router ospf {process_id}')
+            self.session.expect(r'\(config-if\)#')
+            self.session.sendline(f'network {net_id} {wildcard} area {area}')
+            self.session.expect(r'\(config-if\)#')
+            print('OSPF created successfully.')
+            self.session.sendline('exit')
+        except Exception as e:
+            print(f"Error creating OSPF: {e}")
+
+    def advertise_ospf(self):
+        try:
+            self.session.sendline('show ip ospf interface')
+            self.session.expect('#', timeout=10)
+        
+        except pexpect.exceptions.TIMEOUT:
+            print("Timeout while retrieving interface information.")
+        except Exception as e:
+            print(f"Error: {e}")
+
+
     # Show IP interface brief
     def show_ip_interface_brief(self):
         try:
@@ -129,49 +160,8 @@ class SSHTONetworkSession:
             else:
                 print("Invalid option.")
 
-    # Compare two configuration files
-    def compare_configs(self, saved_config_path, compare_config_path):
-        try:
-            with open(saved_config_path, "r") as f:
-                saved_config = f.readlines()
-
-            with open(compare_config_path, "r") as f:
-                compare_config = f.readlines()
-
-            differences = difflib.unified_diff(saved_config, compare_config, fromfile=saved_config_path,
-                                               tofile=compare_config_path, lineterm='')
-            print("\n--- Configuration Differences ---")
-            for line in differences:
-                print(line)
-
-        except FileNotFoundError:
-            print(f"File {saved_config_path} or {compare_config_path} not found.")
-
-    # Compare running config with startup config on the device
-    def compare_with_startup_config_ssh(self):
-        print("\n--- Running Config vs Startup Config ---")
-        try:
-            self.session.sendline('show startup-config')
-            self.session.expect('#', timeout=30)
-            startup_config = self.session.before.splitlines()
-
-            self.session.sendline('show running-config')
-            self.session.expect('#', timeout=30)
-            running_config = self.session.before.splitlines()
-
-            differences = difflib.unified_diff(startup_config, running_config, fromfile='Startup Config',
-                                               tofile='Running Config', lineterm='')
-            print("\n--- Differences ---")
-            for line in differences:
-                print(line)
-
-        except pexpect.exceptions.TIMEOUT:
-            print("Timeout. Device may not be responding.")
-        except pexpect.exceptions.EOF:
-            print("Session unexpectedly closed.")
-        except Exception as e:
-            print(f"Error during comparison: {e}")
-
+   
+    
 
 # Menu to start SSH session
 def menu():
