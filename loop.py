@@ -1,6 +1,9 @@
+from flask import Flask, request, render_template_string
 import difflib  # To handle the comparisons
 import pexpect  # To handle SSH session
 
+# Flask App Initialization
+app = Flask(__name__)
 
 # SSH class for managing network sessions
 class SSHTONetworkSession:
@@ -18,13 +21,13 @@ class SSHTONetworkSession:
         result = self.session.expect(['Password:', pexpect.TIMEOUT, pexpect.EOF])
         if result != 0:
             print('Session failed to establish.')
-            return
+            return False
 
         self.session.sendline(self.password)
         result = self.session.expect(['>', '#', pexpect.TIMEOUT, pexpect.EOF])
         if result != 0:
             print('Authentication failed.')
-            return
+            return False
 
         # Enter enable mode
         self.session.sendline('enable')
@@ -34,14 +37,14 @@ class SSHTONetworkSession:
             result = self.session.expect('#')
         if result != 0:
             print('Enable mode failed.')
-            return
+            return False
 
         # Enter configuration mode
         self.session.sendline('configure terminal')
         result = self.session.expect(r'\(config\)#')
         if result != 0:
             print('Config mode failed.')
-            return
+            return False
 
         # Set hostname
         self.session.sendline(f'hostname {self.hostname}')
@@ -50,112 +53,75 @@ class SSHTONetworkSession:
             print('Hostname set successfully.')
         else:
             print('Failed to set hostname.')
-            return
+            return False
 
         # Exit configuration mode
         self.session.sendline('exit')
         print('Session ready for further commands.')
-        self.compare_configs_menu()
+        return True
 
-    # Creating a loopback interface
-    def creating_loopback(self):
-        # Ask for IP address and subnet dynamically
-        loopback_address = input("Enter loopback IP address: ")
-        subnet = input("Enter subnet mask: ")
-
-        self.session.sendline('configure terminal')
-        self.session.expect(r'\(config\)#')
-        self.session.sendline('interface loopback 0')
-        self.session.expect(r'\(config-if\)#')
-        self.session.sendline(f'ip address {loopback_address} {subnet}')
-        self.session.expect(r'\(config-if\)#')
-        print('Loopback interface created successfully.')
-        self.session.sendline('exit')  # Exit interface config mode
-        self.session.expect(r'\(config\)#')
-        self.session.sendline('exit')  # Exit global config mode
-        self.session.expect('#')
-        # Save to startup config
-        self.session.sendline('copy running-config startup-config')
-        self.session.expect('#')
-        print('Configuration saved to startup configuration.')
-
-    # Menu for comparing configurations
-    def compare_configs_menu(self):
-        while True:
-            print("\n--- Compare Configurations ---")
-            print("1. Compare running config with local version")
-            print("2. Compare running config with startup config on device")
-            print("3. Show IP interface brief")
-            print("4. Create a loopback interface")
-            print("5. Exit")
-
-            option = input('Choose an option: ')
-
-            if option == '1':
-                self.compare_configs('labs_assignment_ssh.txt', 'devices-06.txt')
-            elif option == '2':
-                self.compare_with_startup_config_ssh()
-            elif option == '3':
-                self.session.sendline('show ip interface brief')
-                self.session.expect('#')
-                print(self.session.before)
-            elif option == '4':
-                self.creating_loopback()
-            elif option == '5':
-                print("Exiting comparison menu.")
-                break
-            else:
-                print("Invalid option.")
-
-    # Compare two configuration files
-    def compare_configs(self, saved_config_path, compare_config_path):
+    # Method to execute arbitrary commands
+    def run_command(self, command):
         try:
-            with open(saved_config_path, "r") as f:
-                saved_config = f.readlines()
-
-            with open(compare_config_path, "r") as f:
-                compare_config = f.readlines()
-
-            differences = difflib.unified_diff(saved_config, compare_config, fromfile=saved_config_path,
-                                               tofile=compare_config_path, lineterm='')
-            print("\n--- Configuration Differences ---")
-            for line in differences:
-                print(line)
-
-        except FileNotFoundError:
-            print(f"File {saved_config_path} or {compare_config_path} not found.")
-
-    # Compare running config with startup config on the device
-    def compare_with_startup_config_ssh(self):
-        print("\n--- Running Config vs Startup Config ---")
-        try:
-            self.session.sendline('show startup-config')
-            self.session.expect('#', timeout=30)
-            startup_config = self.session.before.splitlines()
-
-            self.session.sendline('show running-config')
-            self.session.expect('#', timeout=30)
-            running_config = self.session.before.splitlines()
-
-            differences = difflib.unified_diff(startup_config, running_config, fromfile='Startup Config',
-                                               tofile='Running Config', lineterm='')
-            print("\n--- Differences ---")
-            for line in differences:
-                print(line)
-
+            self.session.sendline(command)
+            self.session.expect('#', timeout=10)
+            output = self.session.before
+            return output
         except pexpect.exceptions.TIMEOUT:
-            print("Timeout. Device may not be responding.")
-        except pexpect.exceptions.EOF:
-            print("Session unexpectedly closed.")
+            return "Command execution timed out."
         except Exception as e:
-            print(f"Error during comparison: {e}")
+            return f"Error executing command: {e}"
+
+# Global SSH Session Object
+ssh_session = None
+
+# HTML Template for Web Interface
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web CLI Interface</title>
+</head>
+<body>
+    <h1>Network Device Web CLI</h1>
+    <form method="post">
+        <label for="command">Enter Command:</label><br>
+        <input type="text" id="command" name="command" required><br><br>
+        <button type="submit">Run Command</button>
+    </form>
+    {% if output %}
+    <h2>Command Output:</h2>
+    <pre>{{ output }}</pre>
+    {% endif %}
+</body>
+</html>
+"""
+
+# Flask Route for Web CLI
+@app.route("/", methods=["GET", "POST"])
+def web_cli():
+    global ssh_session
+    output = None
+
+    # Handle Command Submission
+    if request.method == "POST":
+        command = request.form.get("command")
+        if ssh_session:
+            output = ssh_session.run_command(command)
+        else:
+            output = "SSH session is not active. Please restart the program."
+
+    return render_template_string(HTML_TEMPLATE, output=output)
 
 # Menu to start SSH session
 def menu():
+    global ssh_session
+
     while True:
         print('--------- MENU ---------')
-        print('a. SSH Session')
-        print('b. Exit')
+        print('a. Start SSH Session')
+        print('b. Start Web Interface')
+        print('c. Exit')
 
         option = input('Choose an option: ')
 
@@ -167,47 +133,23 @@ def menu():
             hostname = input('Enter new hostname: ')
             enable_password = input('Enter enable password (if any): ')
 
-            ssh = SSHTONetworkSession(host_ip, username, password, hostname, enable_password)
-            ssh.ssh_session()
-
+            ssh_session = SSHTONetworkSession(host_ip, username, password, hostname, enable_password)
+            if ssh_session.ssh_session():
+                print("SSH session established successfully.")
+            else:
+                print("Failed to establish SSH session.")
         elif option == 'b':
+            if ssh_session:
+                print("Starting Web Interface. Open your browser at http://127.0.0.1:5000/")
+                app.run(debug=True)
+            else:
+                print("Start an SSH session first.")
+        elif option == 'c':
             print('Session cancelled. Goodbye.')
             break
-
         else:
             print("Invalid option.")
 
 # Entry point of the program
 if __name__ == "__main__":
     menu()
-
-
-
-
-def show_ip_interface_brief(self):
-    try:
-        # Send the command to the device
-        self.session.sendline('show ip interface brief')
-        self.session.expect('#', timeout=10)  # Wait for the prompt to reappear
-        
-        # Capture the session output
-        raw_output = self.session.before
-        
-        # Clean the output
-        output_lines = raw_output.splitlines()  # Split output into lines
-        filtered_lines = [line.strip() for line in output_lines if line.strip()]  # Remove empty and whitespace lines
-        
-        # Find and print the relevant lines
-        print("\n--- IP Interface Brief ---")
-        header_found = False
-        for line in filtered_lines:
-            if "Interface" in line:  # Look for the header
-                header_found = True
-            if header_found:
-                print(line)  # Print header and subsequent lines
-                
-    except pexpect.exceptions.TIMEOUT:
-        print("Timeout while retrieving interface information.")
-    except Exception as e:
-        print(f"Error: {e}")
-
