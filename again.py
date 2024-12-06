@@ -171,3 +171,34 @@ class SSHTONetworkSession:
         except Exception as e:
             # Print an error message if any other exception occurs during OSPF configuration retrieval.
             print(f"Error: {e}")
+# Menu to start SSH session
+def menu():
+    while True:
+        print('--------- MENU ---------')
+        print('a. SSH Session')
+        print('b. Exit')
+
+        option = input('Choose an option: ')
+
+        if option == 'a':
+            print("SSH SESSION SELECTED")
+            host_ip = input('Enter IP address: ')
+            username = input('Enter username: ')
+            password = input('Enter password: ')
+            hostname = input('Enter new hostname: ')
+            enable_password = input('Enter enable password (if any): ')
+
+            # Create an instance of the SSH session class and start the session
+            ssh = SSHTONetworkSession(host_ip, username, password, hostname, enable_password)
+            ssh.ssh_session()
+
+        elif option == 'b':
+            print('Session cancelled. Goodbye.')
+            break  # Exit the menu loop
+
+        else:
+            print("Invalid option.")
+
+# Entry point of the program
+if __name__ == "__main__":
+    menu()  # Call the menu function to start the program
