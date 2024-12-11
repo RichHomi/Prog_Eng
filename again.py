@@ -1,204 +1,177 @@
-import pexpect  # To handle SSH session
+import pexpect
+import time
+import paramiko
+
+# A time-capsuled function is created to expect a specific pattern
+# The arguments session, prompt(str), and timeout(s) are passed 
+def wait_for_pattern(session, prompt, timeout=20):
+    session.expect(prompt, timeout)
+
+# A class is defined for the Telnet communication with a constructor method
+# function with the ip_address, username, password, and new_hostname as attributes
+class ConnectionToTelnet:
+    def __init__(self, ipadd, un, pss, new_name):
+        self.username = un
+        self.ipadd = ipadd
+        self.new_name = new_name
+        self.password = pss
+
+    # A function is created to connect to a device using a Telnet connection
+    # A message is then displayed to communicate the connection process
+    # Text handling using utf-8 with timeout of 20 seconds created to initiate
+    # a Telnet session using self.ipadd which is sent to the intended device
+    def connection(self):
+        print(f'Establishing Telnet connection to {self.ipadd}...')
+        telnet_com = pexpect.spawn(f'telnet {self.ipadd}', encoding='utf-8', timeout=20)
+        results = telnet_com.expect(['Username: ', pexpect.TIMEOUT])
+        telnet_com.sendline(self.username)
+
+        # Login password attempts for a maximum of 3
+        login_attempts = 3
+        attempts = 0
+
+        # A while loop is created to check password and a wait_for_input waits for the user input
+        # which is sent to the intended device for the connection
+        while attempts < login_attempts:
+            wait_for_pattern(telnet_com, 'Password: ')
+            telnet_com.sendline(self.password)
+
+            # A try and except is used to give access only if credentials are 
+            # correct within the given time of 20 seconds
+            try:
+                wait_for_pattern(telnet_com, '>', timeout=20)
+                print("Login successful")
+                break
+
+            # If the login attempts equals 3, display the message and return to the menu requesting for 
+            # credentials
+            except pexpect.TIMEOUT:
+                attempts += 1
+                print('Login failed: Incorrect credentials')
+                if attempts == login_attempts:
+                    print('Maximum attempts reached. Exiting Telnet session')
+                    return
+
+        # To access the privilege executive mode, 'enable' is required as input
+        # which is then displayed by the '#'
+        telnet_com.sendline('enable')
+        wait_for_pattern(telnet_com, '#')
+
+        # To change the hostname, the user has to enter 'config terminal' and the 
+        # new hostname is displayed in the next step
+        telnet_com.sendline('configure terminal')
+        wait_for_pattern(telnet_com, '(config)#')
+        telnet_com.sendline(f'hostname {self.new_name}')  # Corrected the command format
+        wait_for_pattern(telnet_com, '(config)#')
+
+        # Show the details of the running configuration when the command is entered 
+        telnet_com.sendline('show ip interface brief')
+        wait_for_pattern(telnet_com, '#')
+
+        # Write the output to a file
+        with open("labs_assignment.txt", "w") as f:
+            f.write(telnet_com.before.decode('utf-8'))
+
+        print("Running configuration saved successfully to 'labs_assignment.txt'")
+
+        # Closing Telnet session
+        telnet_com.sendline('exit')
+        print('Session closed')
 
 
-# SSH class for managing network sessions
-class SSHTONetworkSession:
-    def __init__(self, ip_address, username, password, hostname, enable_password=''):
-        # Initialize the SSH session with the provided IP address, username, password, and hostname.
-        # The enable_password is optional and used for accessing privileged mode.
-        self.ip_address = ip_address
-        self.username = username
-        self.password = password
-        self.hostname = hostname
-        self.enable_password = enable_password  # Password required for 'enable' mode
-        self.session = None  # Placeholder for the SSH session object
+# ............SSH CONNECTION.......
 
-    # Initiate SSH session
-    def ssh_session(self):
-        # Spawn an SSH session to the network device using the provided credentials.
-        # 'encoding' ensures the output is in UTF-8 format, 'timeout' specifies the session timeout.
-        self.session = pexpect.spawn(f'ssh {self.username}@{self.ip_address}', encoding='utf-8', timeout=20)
+# A class is defined for the SSH communication with a constructor method
+# function with the ip_address, username, password, and new_hostname as attributes
+class ConnectionToSsh:
+    def __init__(self, ipadd, un, pss, new_name):
+        self.username = un
+        self.ipadd = ipadd
+        self.new_name = new_name
+        self.password = pss
+
+    def connection(self):
+        print(f'Establishing SSH connection to {self.ipadd}...')
+
+        # An instance is created to manage the SSH connection to the device and it is automatically added to the host keys
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        # Login password attempts for a maximum of 3
+        login_attempts = 3
+        attempts = 0
+
+        while attempts < login_attempts:
+            try:
+                client.connect(self.ipadd, username=self.username, password=self.password, timeout=20)
+                print("Login successful")
+                break  # Exit the while loop when the connection is successful
+            except paramiko.AuthenticationException:
+                attempts += 1
+                print(f'Login failed: Incorrect credentials. Attempt {attempts}/{login_attempts}.')
+                if attempts == login_attempts:
+                    print('Maximum attempts reached. Exiting SSH session.')
+                    return
+            except Exception as e:
+                print(f"An error occurred: {e}")
+                return
         
-        # Expect to match one of the expected responses: password prompt, timeout, or EOF.
-        result = self.session.expect(['Password:', pexpect.TIMEOUT, pexpect.EOF])
-        if result != 0:
-            # If the session fails to establish, print an error and exit.
-            print('Session failed to establish.')
-            return
+        # Executing commands after successful login
+        stdin, stdout, stderr = client.exec_command('enable')
+        stdin.write(self.password + '\n')  # Writing the password for enable mode
+        stdin.flush()
 
-        # Send the password to authenticate the session.
-        self.session.sendline(self.password)
-        result = self.session.expect(['>', '#', pexpect.TIMEOUT, pexpect.EOF])
-        if result != 0:
-            # If authentication fails, print an error and exit.
-            print('Authentication failed.')
-            return
+        stdin, stdout, stderr = client.exec_command('configure terminal')
+        stdin, stdout, stderr = client.exec_command(f'hostname {self.new_name}')  # Change the hostname
+        print(stdout.read().decode())  # Output from the hostname command
 
-        # Attempt to enter enable mode for privileged commands.
-        self.session.sendline('enable')
-        result = self.session.expect(['Password:', pexpect.TIMEOUT, pexpect.EOF])
-        if result == 0:
-            # If prompted for an enable password, send it.
-            self.session.sendline(self.enable_password)
-            result = self.session.expect('#')
-        if result != 0:
-            # If entering enable mode fails, print an error and exit.
-            print('Enable mode failed.')
-            return
+        stdin, stdout, stderr = client.exec_command('show ip interface brief')
+        channel = stdout.read().decode()  # Capture output from the command
+        print(channel)  # Print the command output
 
-        # Enter configuration mode to begin making changes.
-        self.session.sendline('configure terminal')
-        result = self.session.expect(r'\(config\)#')
-        if result != 0:
-            # If entering configuration mode fails, print an error and exit.
-            print('Config mode failed.')
-            return
+        # Writing the output to a file
+        with open("labs_assignment_ssh.txt", "w") as f:
+            f.write(channel)
 
-        # Set the hostname of the device.
-        self.session.sendline(f'hostname {self.hostname}')
-        result = self.session.expect(rf'{self.hostname}\(config\)#')
-        if result == 0:
-            # If the hostname is set successfully, print a confirmation message.
-            print('Hostname set successfully.')
-        else:
-            # If setting the hostname fails, print an error and exit.
-            print('Failed to set hostname.')
-            return
+        client.close()  # Closing the SSH session
+        print('Session closed.')
 
-        # Exit configuration mode and print a readiness message.
-        self.session.sendline('exit')
-        print('Session ready for further commands.')
-
-        # Call the configuration menu for further actions.
-        self.compare_configs_menu()
-
-    # Creating a loopback interface
-    # Creating a loopback interface and saving it to startup configuration
-    def creating_loopback(self):
-        try:
-            # Prompt the user to enter the IP address and subnet mask for the loopback interface.
-            loopback_address = input("Enter loopback IP address: ")
-            subnet = input("Enter subnet mask: ")
-
-            # Enter configuration mode to create the loopback interface.
-            self.session.sendline('configure terminal')
-            self.session.expect(r'\(config\)#')
-            self.session.sendline('interface loopback 0')
-            self.session.expect(r'\(config-if\)#')
-
-            # Configure the loopback interface with the provided IP address and subnet mask.
-            self.session.sendline(f'ip address {loopback_address} {subnet}')
-            self.session.expect(r'\(config-if\)#')
-            
-            # Exit interface configuration mode.
-            self.session.sendline('end')
-            self.session.expect(r'#')
-
-            # Save the running configuration to the startup configuration to ensure persistence.
-            self.session.sendline('write memory')
-            self.session.expect(r'#')
-            
-            # Print a success message if the loopback is created and saved successfully.
-            print('Loopback interface created and configuration saved successfully.')
-        
-        except Exception as e:
-            # Print an error message if an exception occurs during loopback creation.
-            print(f"Error creating loopback interface: {e}")
-
-    # Creating and saving OSPF configuration
-    def creating_ospf(self):
-        try:
-            # Prompt the user to enter details for OSPF configuration.
-            process_id = input("Enter the process ID: ")
-            net_id = input("Enter the network address: ")
-            wildcard = input("Enter the wildcard mask: ")
-            area = input("Enter the area: ")
-
-            # Enter configuration mode to create OSPF configuration.
-            self.session.sendline('configure terminal')
-            self.session.expect(r'\(config\)#')
-
-            # Create the OSPF router process with the given process ID.
-            self.session.sendline(f'router ospf {process_id}')
-            self.session.expect(r'\(config-router\)#')
-
-            # Configure the network statement for OSPF.
-            self.session.sendline(f'network {net_id} {wildcard} area {area}')
-            self.session.expect(r'\(config-router\)#')
-
-            # Exit configuration mode.
-            self.session.sendline('end')
-            self.session.expect(r'#')
-
-            # Save the configuration to startup configuration.
-            self.session.sendline('write memory')
-            self.session.expect(r'#')
-
-            # Print a success message if the OSPF configuration is created and saved successfully.
-            print('OSPF configuration created and saved successfully.')
-        
-        except Exception as e:
-            # Print an error message if an exception occurs during OSPF configuration.
-            print(f"Error creating OSPF: {e}")
-
-    def advertise_ospf(self):
-        try:
-            # Print a message indicating that OSPF configuration retrieval is in progress.
-            print("Retrieving OSPF configuration...")
-
-            # Send the command to show the OSPF section of the running configuration.
-            self.session.sendline('show running-config | section ospf')
-            self.session.expect('#', timeout=10) 
-
-            # Capture the output before the prompt and process the raw output.
-            raw_output = self.session.before
-            output_lines = raw_output.splitlines()
-            filtered_lines = [line.strip() for line in output_lines if line.strip()]
-
-            # If no OSPF configuration lines were found, print a message indicating so.
-            if not filtered_lines:
-                print("No OSPF configuration found.")
-            else:
-                # Print a header for the OSPF configuration output.
-                print("\n--- OSPF Configuration ---")
-                # Print each line of the filtered OSPF configuration.
-                for line in filtered_lines:
-                    print(line)  # Print each line of the OSPF section
-        
-        except pexpect.exceptions.TIMEOUT:
-            # Handle the timeout exception if the OSPF configuration retrieval takes too long.
-            print("Timeout while retrieving OSPF configuration.")
-        except Exception as e:
-            # Print an error message if any other exception occurs during OSPF configuration retrieval.
-            print(f"Error: {e}")
-# Menu to start SSH session
 def menu():
+    # This menu is displayed when the script is executed while collecting user information be it
+    # Telnet or SSH
+
     while True:
-        print('--------- MENU ---------')
-        print('a. SSH Session')
-        print('b. Exit')
+        print('\n-----Menu-------')
+        print('1. Telnet Connection')
+        print('2. SSH Connection')
+        print('3. Exit')
 
-        option = input('Choose an option: ')
+        option = input('Select an option from the choices above: ')  # Fixed prompt text
 
-        if option == 'a':
-            print("SSH SESSION SELECTED")
-            host_ip = input('Enter IP address: ')
-            username = input('Enter username: ')
-            password = input('Enter password: ')
-            hostname = input('Enter new hostname: ')
-            enable_password = input('Enter enable password (if any): ')
+        if option == '1':
+            # This is for Telnet connection
+            host_ip = input('Enter the device IP address: ')
+            username = input('Enter the Telnet username: ')
+            password = input('Enter the Telnet password: ')
+            hostname = input('Enter the new hostname for the device: ')
+            telnet_connection = ConnectionToTelnet(host_ip, username, password, hostname)
+            telnet_connection.connection()  # Call the connection method
 
-            # Create an instance of the SSH session class and start the session
-            ssh = SSHTONetworkSession(host_ip, username, password, hostname, enable_password)
-            ssh.ssh_session()
+        elif option == '2':
+            # For SSH connection
+            host_ip = input('Enter the device IP address: ')
+            username = input('Enter the SSH username: ')
+            password = input('Enter the SSH password: ')
+            hostname = input('Enter the new hostname for the device: ')
+            ssh_connection = ConnectionToSsh(host_ip, username, password, hostname)
+            ssh_connection.connection()  # Call the connection method
 
-        elif option == 'b':
-            print('Session cancelled. Goodbye.')
-            break  # Exit the menu loop
-
+        elif option == '3':
+            # Close the program
+            print("Cancelled. Goodbye")
+            break
         else:
-            print("Invalid option.")
+            print("Invalid option. Try again.")
 
-# Entry point of the program
 if __name__ == "__main__":
-    menu()  # Call the menu function to start the program
+    menu() 
